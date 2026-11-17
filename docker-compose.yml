@@ -1,0 +1,92 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: marketplace_app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://marketplace:marketplace_pass@postgres:5432/marketplace
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://mq_user:mq_pass@rabbitmq:5672//
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app  # Для горячей перезагрузки при разработке
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  celery_worker:
+    build: .
+    container_name: marketplace_celery
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://marketplace:marketplace_pass@postgres:5432/marketplace
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://mq_user:mq_pass@rabbitmq:5672//
+    depends_on:
+      - rabbitmq
+      - redis
+    command: celery -A app.common.celery_app worker --loglevel=info
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: marketplace_postgres
+    environment:
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: marketplace_pass
+      POSTGRES_DB: marketplace
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketplace -d marketplace"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: marketplace_clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ch_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: marketplace_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: marketplace_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: mq_user
+      RABBITMQ_DEFAULT_PASS: mq_pass
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+volumes:
+  pg_data:
+  ch_data:
