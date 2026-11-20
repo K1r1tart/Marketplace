@@ -15,4 +15,5 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
-# Позже здесь будут задачи: send_email_receipt, update_dynamic_prices и т.д.
+# ⚠️ ВАЖНО: Явно импортируем модуль с задачами, чтобы Celery их зарегистрировал при старте
+import app.notifications.tasks  # noqa: E402
