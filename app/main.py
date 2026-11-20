@@ -2,11 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator  # ← ДОБАВИТЬ
 import time
 
 from app.common.database import engine, Base
-
-# Регистрируем все модели, чтобы SQLAlchemy создала таблицы
 from app.auth import models as auth_models  # noqa: F401
 from app.catalog import models as catalog_models  # noqa: F401
 from app.orders import models as order_models  # noqa: F401
@@ -31,9 +30,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 🎯 ДОБАВИТЬ ЭТУ СТРОКУ: автоматический сбор метрик
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+
 app.include_router(auth_router)
 app.include_router(catalog_router)
-app.include_router(orders_router)  # <-- Добавили заказы
+app.include_router(orders_router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
@@ -46,10 +48,6 @@ async def root():
 @app.get("/health")
 async def health_check():
     return JSONResponse(
-        content={
-            "status": "healthy",
-            "service": "marketplace-api",
-            "timestamp": time.time(),
-        },
+        content={"status": "healthy", "service": "marketplace-api", "timestamp": time.time()},
         status_code=200,
     )

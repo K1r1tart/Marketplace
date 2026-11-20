@@ -30,7 +30,7 @@ services:
     depends_on:
       - rabbitmq
       - redis
-    command: celery -A app.common.celery_app worker --loglevel=info
+    command: celery -A app.common.celery_app worker --loglevel=info --beat
 
   postgres:
     image: postgres:16-alpine

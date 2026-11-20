@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 from app.common.config import settings
 
 celery_app = Celery(
@@ -13,6 +14,15 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    # Настройка Beat: запуск задачи динамического ценообразования каждую минуту
+    beat_schedule={
+        "dynamic-pricing-every-minute": {
+            "task": "app.analytics.tasks.dynamic_pricing_task",
+            "schedule": 60.0,  # Каждые 60 секунд
+        },
+    },
 )
 
-# ⚠️ ВАЖНО: Явно импортируем модуль с задачами, чтобы Celery их зарегистрировал при старте
+# Импортируем задачи, чтобы Celery их зарегистрировал
+import app.notifications.tasks  # noqa: E402
+import app.analytics.tasks  # noqa: E402
