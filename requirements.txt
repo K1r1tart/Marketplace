@@ -4,10 +4,10 @@ pydantic==2.9.2
 pydantic-settings==2.5.2
 sqlalchemy[asyncio]==2.0.35
 asyncpg==0.29.0
-clickhouse-driver==0.2.9
 redis==5.1.0
 celery==5.4.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 aiosmtplib==3.0.1
 pytest==8.3.3
@@ -18,3 +18,4 @@ ruff==0.6.9
 mypy==1.11.2
 email-validator==2.2.0
 python-multipart==0.0.9
+aiosqlite==0.20.0
