@@ -53,6 +53,12 @@ def dynamic_pricing_task(self):
                     updated += 1
 
                 await db.commit()
+
+                 # Инвалидируем кэш каталога, т.к. цены изменились
+                from app.common.cache import invalidate_pattern
+                await invalidate_pattern("products:*")
+                await invalidate_pattern("recs:*")
+                
                 logger.info(f"✅ Динамическое ценообразование: обновлено {updated} товаров")
                 return {"updated": updated}
 
