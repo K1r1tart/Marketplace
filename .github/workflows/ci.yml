@@ -32,11 +32,13 @@ jobs:
 
     - name: Run Tests
       run: |
-        pytest tests/ -v
+        PYTHONPATH=. pytest tests/ -v
+      env:
+        PYTHONPATH: .
 
   build-docker:
     runs-on: ubuntu-latest
-    needs: test-and-lint # Запускается только если тесты и линтер прошли успешно
+    needs: test-and-lint
     
     steps:
     - name: Checkout code
@@ -44,5 +46,5 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t marketplace-app:latest .
-        echo "Docker image built successfully!"
+        docker compose build app celery_worker
+        echo "✅ Docker images built successfully!"
