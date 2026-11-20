@@ -16,7 +16,9 @@ router = APIRouter(prefix="/orders", tags=["orders"])
 async def create_new_order(
     data: schemas.OrderCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[user_models.User, Depends(require_role(["buyer", "admin"]))],
+    current_user: Annotated[
+        user_models.User, Depends(require_role(["buyer", "admin"]))
+    ],
 ):
     """Оформление заказа (доступно покупателям и админам)"""
     return await service.create_order(db, current_user.id, data)

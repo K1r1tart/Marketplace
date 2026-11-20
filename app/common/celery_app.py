@@ -16,4 +16,3 @@ celery_app.conf.update(
 )
 
 # ⚠️ ВАЖНО: Явно импортируем модуль с задачами, чтобы Celery их зарегистрировал при старте
-import app.notifications.tasks  # noqa: E402
