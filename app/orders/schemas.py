@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -9,7 +9,6 @@ class OrderItemCreate(BaseModel):
 
 class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
-    # В реальном проекте здесь были бы адрес доставки и т.д.
 
 
 class OrderItemOut(BaseModel):
@@ -25,6 +24,7 @@ class OrderOut(BaseModel):
     id: int
     user_id: int
     total_amount: float
+    delivery_cost: float  
     status: str
     items: List[OrderItemOut]
 

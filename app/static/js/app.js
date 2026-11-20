@@ -106,31 +106,68 @@ function showCart() {
 async function showOrders() {
     hideAllSections();
     document.getElementById('orders-section').classList.remove('hidden');
+
     try {
         const response = await fetch(`${API_BASE}/orders/my`, {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
         if (!response.ok) throw new Error();
+
         const orders = await response.json();
         const list = document.getElementById('orders-list');
+
         if (orders.length === 0) {
             list.innerHTML = '<p class="text-center text-gray-500 py-12">Заказов пока нет</p>';
             return;
         }
-        list.innerHTML = orders.map(o => `
-            <div class="bg-white rounded-lg p-6 shadow">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="font-bold text-lg text-gray-800">Заказ №${o.id}</h3>
-                    <span class="px-3 py-1 rounded-full text-sm ${o.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
-                        ${o.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен'}
-                    </span>
+
+        list.innerHTML = orders.map(o => {
+            const isPending = o.status === 'pending';
+            // Fallback на 0 на случай старых заказов без поля доставки
+            const deliveryCost = o.delivery_cost || 0;
+            const finalTotal = o.total_amount + deliveryCost;
+
+            const statusBadge = isPending
+                ? '<span class="px-3 py-1 rounded-full text-sm bg-yellow-100 text-yellow-800">Ожидает оплаты</span>'
+                : '<span class="px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">Оплачен</span>';
+
+            const payButton = isPending
+                ? `<button onclick="payOrder(${o.id})" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center">
+                     <i class="fas fa-credit-card mr-2"></i> Оплатить заказ
+                   </button>`
+                : '';
+
+            return `
+                <div class="bg-white rounded-lg p-6 shadow border-l-4 ${isPending ? 'border-yellow-400' : 'border-green-500'}">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-lg text-gray-800">Заказ №${o.id}</h3>
+                        ${statusBadge}
+                    </div>
+                    <div class="text-gray-600 mb-3 space-y-1">
+                        ${o.items.map(i => `<div>• ${i.quantity} шт. × ${i.price_at_purchase.toLocaleString()} ₽</div>`).join('')}
+                    </div>
+
+                    <!-- ⬇️ ВОТ ЭТОТ БЛОК ЗАМЕНИЛ старый "Итого: ..." -->
+                    <div class="mt-4 pt-4 border-t border-gray-200 space-y-1">
+                        <div class="flex justify-between text-sm text-gray-600">
+                            <span>Товары:</span>
+                            <span>${o.total_amount.toLocaleString()} ₽</span>
+                        </div>
+                        <div class="flex justify-between text-sm text-gray-600">
+                            <span>Доставка:</span>
+                            <span>${deliveryCost === 0 ? 'Бесплатно 🎉' : deliveryCost.toLocaleString() + ' ₽'}</span>
+                        </div>
+                        <div class="flex justify-between text-xl font-bold text-primary-500 pt-2 border-t border-gray-200">
+                            <span>Итого:</span>
+                            <span>${finalTotal.toLocaleString()} ₽</span>
+                        </div>
+                    </div>
+                    <!-- ⬆️ конец нового блока -->
+
+                    ${payButton}
                 </div>
-                <div class="text-gray-600 mb-3 space-y-1">
-                    ${o.items.map(i => `<div>• ${i.quantity} шт. × ${i.price_at_purchase.toLocaleString()} ₽</div>`).join('')}
-                </div>
-                <div class="text-xl font-bold text-primary-500 mt-4 pt-4 border-t border-gray-200">Итого: ${o.total_amount.toLocaleString()} ₽</div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     } catch (e) {
         document.getElementById('orders-list').innerHTML = '<p class="text-red-500 text-center py-12">Ошибка загрузки заказов</p>';
     }
@@ -410,6 +447,7 @@ function renderCart() {
         document.getElementById('cart-total').textContent = '0 ₽';
         return;
     }
+
     let total = 0;
     cartItems.innerHTML = cart.map(item => {
         const itemTotal = item.price * item.quantity;
@@ -437,7 +475,27 @@ function renderCart() {
             </div>
         `;
     }).join('');
-    document.getElementById('cart-total').textContent = total.toLocaleString() + ' ₽';
+
+    // Расчёт доставки (5% от суммы, но не менее 200 ₽ и не более 1000 ₽; бесплатно от 5000 ₽)
+    const deliveryCost = total >= 5000 ? 0 : Math.max(200, Math.min(total * 0.05, 1000));
+    const finalTotal = total + deliveryCost;
+
+    document.getElementById('cart-total').innerHTML = `
+        <div class="space-y-2">
+            <div class="flex justify-between text-gray-600">
+                <span>Товары:</span>
+                <span>${total.toLocaleString()} ₽</span>
+            </div>
+            <div class="flex justify-between text-gray-600">
+                <span>Доставка:</span>
+                <span>${deliveryCost === 0 ? 'Бесплатно' : deliveryCost.toLocaleString() + ' ₽'}</span>
+            </div>
+            <div class="flex justify-between text-xl font-bold text-primary-500 pt-2 border-t">
+                <span>Итого:</span>
+                <span>${finalTotal.toLocaleString()} ₽</span>
+            </div>
+        </div>
+    `;
 }
 
 function changeQuantity(productId, delta) {
@@ -492,4 +550,26 @@ function logout() {
     document.getElementById('add-product-btn').classList.add('hidden');
     goHome();
     showToast('Вы вышли из аккаунта', 'info');
+}
+
+async function payOrder(orderId) {
+    showToast('Обработка платежа...', 'info');
+    try {
+        const response = await fetch(`${API_BASE}/orders/${orderId}/pay`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            showToast(error.detail || 'Ошибка оплаты', 'error');
+            return;
+        }
+
+        showToast('Оплата прошла успешно! Чек отправлен на email.', 'success');
+        // Перерисовываем список заказов, чтобы обновить статус
+        showOrders();
+    } catch (error) {
+        showToast('Ошибка сети при оплате', 'error');
+    }
 }
