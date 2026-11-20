@@ -36,3 +36,13 @@ async def get_my_orders(
         .where(models.Order.user_id == current_user.id)
     )
     return result.scalars().all()
+
+
+@router.post("/{order_id}/pay", response_model=schemas.OrderOut)
+async def pay_existing_order(
+    order_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[user_models.User, Depends(get_current_user)],
+):
+    """Оплатить заказ (эмуляция внешнего платежного шлюза)"""
+    return await service.pay_order(db, order_id, current_user.id)

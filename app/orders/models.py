@@ -1,14 +1,12 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func, Enum
 from sqlalchemy.orm import relationship
-import enum
 from app.common.database import Base
+import enum
 
 
-class OrderStatus(str, enum.Enum):
+class OrderStatus(enum.Enum):
     PENDING = "pending"
     PAID = "paid"
-    SHIPPED = "shipped"
-    CANCELLED = "cancelled"
 
 
 class Order(Base):
@@ -17,12 +15,11 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     total_amount = Column(Float, nullable=False)
+    delivery_cost = Column(Float, default=0.0, nullable=False)  # ← НОВОЕ ПОЛЕ
     status = Column(String, default=OrderStatus.PENDING.value, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    items = relationship(
-        "OrderItem", back_populates="order", cascade="all, delete-orphan"
-    )
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
 
 class OrderItem(Base):
@@ -32,8 +29,6 @@ class OrderItem(Base):
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     quantity = Column(Integer, nullable=False)
-    price_at_purchase = Column(
-        Float, nullable=False
-    )  # Фиксируем цену на момент покупки
+    price_at_purchase = Column(Float, nullable=False)
 
     order = relationship("Order", back_populates="items")

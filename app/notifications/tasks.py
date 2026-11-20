@@ -1,39 +1,56 @@
 import logging
-from app.common.celery_app import celery_app
-from app.common.database import AsyncSessionLocal
+import asyncio
+import os
 from sqlalchemy import select
-from app.orders.models import Order
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
+
+from app.common.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://marketplace:marketplace_pass@postgres:5432/marketplace"
+)
 
 
 @celery_app.task(bind=True, max_retries=3)
 def send_receipt_email_task(self, order_id: int):
     """Асинхронная задача отправки чека на email"""
-    import asyncio
 
     async def _send():
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(select(Order).where(Order.id == order_id))
-            order = result.scalar_one_or_none()
+        # Создаём свой движок с NullPool, чтобы избежать конфликта event loop
+        engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+        SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-            if not order:
-                logger.error(f"Заказ {order_id} не найден для отправки чека")
-                return
+        try:
+            async with SessionLocal() as db:
+                from app.orders.models import Order
+                result = await db.execute(select(Order).where(Order.id == order_id))
+                order = result.scalar_one_or_none()
 
-            # Здесь должна быть реальная интеграция с SMTP (aiosmtplib) или сервисом типа Resend/Mailgun.
-            # Для демо мы эмулируем успешную отправку и логируем её.
-            email_subject = f"Чек за заказ №{order.id}"
-            email_body = f"Спасибо за покупку! Сумма заказа: {order.total_amount} руб. Статус: {order.status}"
+                if not order:
+                    logger.error(f"Заказ {order_id} не найден для отправки чека")
+                    return {"status": "error", "reason": "order_not_found"}
 
-            logger.info(
-                f"📧 [MOCK EMAIL] Отправка чека: Тема='{email_subject}', Текст='{email_body}'"
-            )
+                # Эмулируем отправку email
+                email_subject = f"Чек за заказ №{order.id}"
+                email_body = (
+                    f"Спасибо за покупку! Сумма заказа: {order.total_amount} руб. "
+                    f"Доставка: {order.delivery_cost} руб. "
+                    f"Итого к оплате: {order.total_amount + order.delivery_cost} руб. "
+                    f"Статус: {order.status}"
+                )
+                logger.info(f"📧 [MOCK EMAIL] Отправка чека: Тема='{email_subject}', Текст='{email_body}'")
 
-            # Если бы были реальные настройки SMTP:
-            # await send_real_email(order.user_email, email_subject, email_body)
+                return {"status": "success", "order_id": order.id}
 
-            return {"status": "success", "order_id": order.id}
+        except Exception as e:
+            logger.error(f"❌ Ошибка в send_receipt_email_task: {e}")
+            raise
+        finally:
+            await engine.dispose()
 
-    # Запускаем асинхронную функцию внутри синхронной Celery-задачи
     return asyncio.run(_send())

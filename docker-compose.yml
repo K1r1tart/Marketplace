@@ -30,6 +30,9 @@ services:
     depends_on:
       - rabbitmq
       - redis
+    volumes:
+      - ./app:/app/app          
+      - ./tests:/app/tests
     command: celery -A app.common.celery_app worker --loglevel=info --beat
 
   postgres:
