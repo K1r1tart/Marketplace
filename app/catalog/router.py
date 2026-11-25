@@ -23,13 +23,54 @@ async def list_products(
     return await service.get_products(db, category=category, search=search)
 
 
-@router.get("/recommendations", response_model=list[schemas.ProductOut])
+@router.get("/recommendations")
 async def get_recommendations(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    category: str = Query(..., description="Category for recommendations"),
-    exclude_id: Optional[int] = Query(None, description="Exclude product id"),
+    product_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],  # <-- 1. Сначала ОБЯЗАТЕЛЬНЫЙ аргумент (без '=')
+    limit: int = 4,                                # <-- 2. В самом конце аргумент СО ЗНАЧЕНИЕМ ПО УМОЛЧАНИЮ
 ):
-    return await service.get_recommendations(db, category=category, exclude_id=exclude_id)
+    """
+    Рекомендательная система: 
+    Возвращает популярные товары из той же категории, исключая текущий и отсутствующие на складе.
+    """
+    from sqlalchemy import desc
+    
+    # 1. Узнаем категорию текущего товара
+    result = await db.execute(select(models.Product).where(models.Product.id == product_id))
+    current_product = result.scalar_one_or_none()
+    
+    if not current_product:
+        return []
+
+    # 2. Ищем похожие товары
+    query = (
+        select(models.Product)
+        .where(
+            models.Product.category == current_product.category,
+            models.Product.id != product_id,
+            models.Product.stock > 0  # Показываем только то, что можно купить
+        )
+        .order_by(desc(models.Product.views))  # Сортируем по популярности (просмотрам)
+        .limit(limit)
+    )
+    
+    result = await db.execute(query)
+    recommendations = result.scalars().all()
+    
+    # Преобразуем в словари для JSON-ответа
+    return [
+        {
+            "id": p.id,
+            "title": p.title,
+            "description": p.description,
+            "price": p.price,
+            "category": p.category,
+            "views": p.views,
+            "image_url": p.image_url,
+            "stock": p.stock
+        }
+        for p in recommendations
+    ]
 
 
 @router.post("/", response_model=schemas.ProductOut, status_code=201)
@@ -148,3 +189,4 @@ async def upload_product_image(
     await db.refresh(product)
     
     return product
+

@@ -6,14 +6,12 @@ let isLoginMode = true;
 let currentCategory = 'all';
 let currentSearch = '';
 let isDark = localStorage.getItem('theme') === 'dark';
-
 if (isDark) document.documentElement.classList.add('dark');
 
 document.addEventListener('DOMContentLoaded', () => {
     updateThemeIcon();
     updateCartCount();
     setupSearch();
-    
     const pendingOrderId = localStorage.getItem('pending_order_id');
     if (pendingOrderId && currentToken) {
         localStorage.removeItem('pending_order_id');
@@ -193,70 +191,40 @@ async function loadUserProfile() {
 
 async function loadProducts() {
     const grid = document.getElementById('products-grid');
-    // Показываем скелетоны загрузки
-    grid.innerHTML = Array(8).fill(0).map(() => `
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="h-48 skeleton"></div>
-            <div class="p-4 space-y-3">
-                <div class="h-3 skeleton rounded w-1/3"></div><div class="h-5 skeleton rounded w-3/4"></div>
-                <div class="h-3 skeleton rounded w-full"></div><div class="h-8 skeleton rounded w-1/2"></div>
-                <div class="h-10 skeleton rounded w-full"></div>
-            </div>
-        </div>`).join('');
-    
+    grid.innerHTML = Array(8).fill(0).map(() => `<div class="bg-white rounded-lg shadow overflow-hidden"> <div class="h-48 skeleton"></div> <div class="p-4 space-y-3"> <div class="h-3 skeleton rounded w-1/3"></div><div class="h-5 skeleton rounded w-3/4"></div> <div class="h-3 skeleton rounded w-full"></div><div class="h-8 skeleton rounded w-1/2"></div> <div class="h-10 skeleton rounded w-full"></div> </div> </div>`).join('');
     try {
         const params = new URLSearchParams();
         if (currentCategory && currentCategory !== 'all') params.append('category', currentCategory);
         if (currentSearch) params.append('search', currentSearch);
-        
         const response = await fetch(`${API_BASE}/products/?${params.toString()}`);
         if (!response.ok) throw new Error('Ошибка загрузки');
         const products = await response.json();
-        
-        // Инкремент просмотров в фоне
         products.forEach(p => { fetch(`${API_BASE}/products/${p.id}/view`, { method: 'POST' }).catch(() => {}); });
-
-        // === ФИЛЬТРАЦИЯ: покупатели видят только stock > 0. Продавцы/админы видят ВСЁ ===
         const visibleProducts = products.filter(p => {
             if (currentUser && (currentUser.id === p.seller_id || currentUser.role === 'admin')) {
-                return true; 
+                return true;
             }
-            return p.stock > 0; 
+            return p.stock > 0;
         });
-
-        if (visibleProducts.length === 0) { 
-            grid.innerHTML = '<p class="col-span-4 text-center text-gray-500 py-12">Активных товаров не найдено</p>'; 
-            return; 
+        if (visibleProducts.length === 0) {
+            grid.innerHTML = '<p class="col-span-4 text-center text-gray-500 py-12">Активных товаров не найдено</p>';
+            return;
         }
-        
         grid.innerHTML = visibleProducts.map(p => {
             const imgUrl = p.image_url ? p.image_url : `https://picsum.photos/seed/${p.id}/400/300`;
-            
-            // Безопасное экранирование кавычек для onclick
             const safeTitle = p.title.replace(/'/g, "\\'");
             const safeDesc = (p.description || '').replace(/'/g, "\\'");
             const safeImg = (p.image_url || '').replace(/'/g, "\\'");
-            
             const isOwner = currentUser && (currentUser.id === p.seller_id || currentUser.role === 'admin');
-            
             const ownerButtons = isOwner ? `
                 <div class="flex space-x-2 mt-2">
-                    <button onclick="event.stopPropagation(); openEditModal(${p.id}, '${safeTitle}', '${safeDesc}', '${p.category}', ${p.price}, ${p.stock})" 
-                            class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded text-sm transition">
-                        <i class="fas fa-edit mr-1"></i>Изменить
-                    </button>
-                    <button onclick="event.stopPropagation(); deleteProduct(${p.id})" 
-                            class="flex-1 bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded text-sm transition">
-                        <i class="fas fa-trash mr-1"></i>Удалить
-                    </button>
+                    <button onclick="event.stopPropagation(); openEditModal(${p.id}, '${safeTitle}', '${safeDesc}', '${p.category}', ${p.price}, ${p.stock})" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded text-sm transition"><i class="fas fa-edit mr-1"></i>Изменить</button>
+                    <button onclick="event.stopPropagation(); deleteProduct(${p.id})" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded text-sm transition"><i class="fas fa-trash mr-1"></i>Удалить</button>
                 </div>
             ` : '';
-
-            // Если товар закончился, показываем неактивную кнопку (полезно для владельца)
-            const cartButton = p.stock > 0 
+            const cartButton = p.stock > 0
                 ? `<button onclick="event.stopPropagation(); addToCart(${p.id}, '${safeTitle}', ${p.price}, '${safeImg}', ${p.stock})" class="w-full btn-primary text-white py-2 rounded-lg hover:opacity-90 transition"><i class="fas fa-cart-plus mr-2"></i>В корзину</button>`
                 : `<button disabled class="w-full bg-gray-300 text-gray-500 py-2 rounded-lg cursor-not-allowed"><i class="fas fa-ban mr-2"></i>Нет в наличии</button>`;
-
             return `
                 <div class="product-card bg-white rounded-lg shadow overflow-hidden cursor-pointer" onclick="showProductDetail(${p.id})">
                     <div class="h-48 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center overflow-hidden">
@@ -271,6 +239,7 @@ async function loadProducts() {
                             <span class="text-xs ${p.stock > 0 ? 'bg-gray-200' : 'bg-red-100 text-red-600 font-bold'} px-2 py-1 rounded">📦 ${p.stock} шт.</span>
                         </div>
                         ${cartButton}
+                        <button onclick="event.stopPropagation(); showRecommendations(${p.id}, '${p.category}')" class="w-full mt-2 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition text-sm"><i class="fas fa-lightbulb mr-2"></i>Похожие товары</button>
                         ${ownerButtons}
                     </div>
                 </div>
@@ -308,7 +277,7 @@ async function showProductDetail(productId) {
                     <span class="text-gray-500">👁 ${product.views || 0} просмотров</span>
                     <span class="text-gray-500">📦 Остаток: ${product.stock} шт.</span>
                 </div>
-                <button onclick="addToCart(${product.id}, '${safeTitle}', ${product.price}, '${safeImg}'); closeModal('product-modal');" class="w-full btn-primary text-white py-3 rounded-lg text-lg"><i class="fas fa-cart-plus mr-2"></i>В корзину</button>
+                <button onclick="addToCart(${product.id}, '${safeTitle}', ${product.price}, '${safeImg}', ${product.stock}); closeModal('product-modal');" class="w-full btn-primary text-white py-3 rounded-lg text-lg"><i class="fas fa-cart-plus mr-2"></i>В корзину</button>
             </div>`;
     } catch (e) {
         content.innerHTML = '<p class="p-8 text-center text-red-500">Ошибка загрузки товара</p>';
@@ -316,18 +285,48 @@ async function showProductDetail(productId) {
 }
 
 async function showRecommendations(productId, category) {
+    const grid = document.getElementById('products-grid');
+    grid.innerHTML = Array(4).fill(0).map(() => `<div class="bg-white rounded-lg shadow overflow-hidden"> <div class="h-48 skeleton"></div> <div class="p-4 space-y-3"> <div class="h-3 skeleton rounded w-1/3"></div> <div class="h-5 skeleton rounded w-3/4"></div> <div class="h-8 skeleton rounded w-1/2"></div> </div> </div>`).join('');
     try {
-        const response = await fetch(`${API_BASE}/products/recommendations?category=${category}&exclude_id=${productId}`);
-        if (!response.ok) throw new Error();
+        const response = await fetch(`${API_BASE}/products/recommendations?product_id=${productId}&limit=4`);
+        if (!response.ok) throw new Error('Ошибка загрузки рекомендаций');
         const recommendations = await response.json();
-        const grid = document.getElementById('products-grid');
-        if (recommendations.length === 0) { showToast('Похожих товаров не найдено', 'info'); return; }
-        grid.innerHTML = `<div class="col-span-4 mb-4"><button onclick="loadProducts()" class="text-primary-500 hover:underline font-medium"><i class="fas fa-arrow-left mr-2"></i>Назад ко всем товарам</button><h3 class="text-xl font-bold mt-4 text-gray-800">Похожие товары в категории "${getCategoryName(category)}"</h3></div>` + recommendations.map(p => {
+        let html = `
+            <div class="col-span-4 mb-6">
+                <button onclick="loadProducts()" class="text-primary-500 hover:underline font-medium flex items-center"><i class="fas fa-arrow-left mr-2"></i>Назад ко всем товарам</button>
+                <h3 class="text-2xl font-bold mt-4 text-gray-800">🧠 Похожие товары в категории «${getCategoryName(category)}»<span class="text-sm font-normal text-gray-500">(ранжированы по популярности)</span></h3>
+            </div>`;
+        if (recommendations.length === 0) {
+            html += `<p class="col-span-4 text-center text-gray-500 py-12">Похожих товаров в наличии нет</p>`;
+            grid.innerHTML = html;
+            return;
+        }
+        html += recommendations.map(p => {
+            const imgUrl = p.image_url ? p.image_url : `https://picsum.photos/seed/${p.id}/400/300`;
             const safeTitle = p.title.replace(/'/g, "\\'");
             const safeImg = (p.image_url || '').replace(/'/g, "\\'");
-            return `<div class="product-card bg-white rounded-lg shadow overflow-hidden"><div class="h-48 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center overflow-hidden"><img src="${p.image_url || `https://picsum.photos/seed/${p.id}/400/300`}" alt="${p.title}" class="w-full h-full object-cover"></div><div class="p-4"><h3 class="font-bold text-lg mb-2 truncate text-gray-800">${p.title}</h3><p class="text-gray-500 text-sm mb-3 h-10 overflow-hidden">${p.description || 'Нет описания'}</p><div class="flex justify-between items-center mb-3"><span class="text-2xl font-bold text-primary-500">${p.price.toLocaleString()} ₽</span><span class="text-xs bg-gray-200 px-2 py-1 rounded">👁 ${p.views || 0}</span></div><button onclick="addToCart(${p.id}, '${safeTitle}', ${p.price}, '${safeImg}')" class="w-full btn-primary text-white py-2 rounded-lg hover:opacity-90 transition"><i class="fas fa-cart-plus mr-2"></i>В корзину</button></div></div>`;
+            return `
+                <div class="product-card bg-white rounded-lg shadow overflow-hidden cursor-pointer" onclick="showProductDetail(${p.id})">
+                    <div class="h-48 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center overflow-hidden">
+                        <img src="${imgUrl}" alt="${p.title}" class="w-full h-full object-cover" onerror="this.src='https://picsum.photos/seed/${p.id}/400/300'">
+                    </div>
+                    <div class="p-4">
+                        <div class="text-xs text-gray-500 mb-1 uppercase tracking-wide">${getCategoryName(p.category)}</div>
+                        <h3 class="font-bold text-lg mb-2 truncate text-gray-800">${p.title}</h3>
+                        <p class="text-gray-500 text-sm mb-3 h-10 overflow-hidden">${p.description || 'Нет описания'}</p>
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-2xl font-bold text-primary-500">${p.price.toLocaleString()} ₽</span>
+                            <span class="text-xs bg-gray-200 px-2 py-1 rounded">👁 ${p.views || 0}</span>
+                        </div>
+                        <button onclick="event.stopPropagation(); addToCart(${p.id}, '${safeTitle}', ${p.price}, '${safeImg}', ${p.stock})" class="w-full btn-primary text-white py-2 rounded-lg hover:opacity-90 transition"><i class="fas fa-cart-plus mr-2"></i>В корзину</button>
+                    </div>
+                </div>`;
         }).join('');
-    } catch (error) { showToast('Ошибка загрузки рекомендаций', 'error'); }
+        grid.innerHTML = html;
+    } catch (error) {
+        showToast('Ошибка загрузки рекомендаций', 'error');
+        loadProducts();
+    }
 }
 
 function getCategoryName(category) {
@@ -384,7 +383,6 @@ async function handleAddProduct(event) {
     } catch (error) { showToast('Ошибка сети: ' + error.message, 'error'); console.error(error); }
 }
 
-// === РЕДАКТИРОВАНИЕ И УДАЛЕНИЕ ===
 function openEditModal(productId, title, description, category, price, stock) {
     document.getElementById('edit-product-id').value = productId;
     document.getElementById('edit-product-title').value = title;
@@ -405,7 +403,6 @@ async function handleEditProduct(event) {
     const stock = parseInt(document.getElementById('edit-product-stock')?.value || 0);
     const category = document.getElementById('edit-product-category').value;
     const imageFile = document.getElementById('edit-product-image')?.files[0];
-
     try {
         const response = await fetch(`${API_BASE}/products/${productId}`, {
             method: 'PUT',
@@ -438,19 +435,15 @@ async function deleteProduct(productId) {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
-
         if (response.status === 204 || response.ok) {
             showToast('Товар успешно удалён', 'success');
             loadProducts();
             return;
         }
-
         let errorMsg = 'Ошибка удаления';
         try {
             const errorData = await response.json();
-            if (typeof errorData.detail === 'string') {
-                errorMsg = errorData.detail;
-            }
+            if (typeof errorData.detail === 'string') errorMsg = errorData.detail;
         } catch (parseError) {
             errorMsg = 'Серверная ошибка при удалении';
         }
@@ -459,22 +452,13 @@ async function deleteProduct(productId) {
         showToast('Ошибка сети: ' + error.message, 'error');
     }
 }
-// === КОРЗИНА ===
+
 function addToCart(productId, title, price, imageUrl = '', stock = 999) {
-    if (!currentToken) { 
-        showToast('Войдите в аккаунт, чтобы добавлять товары', 'warning'); 
-        showAuthModal(); 
-        return; 
-    }
-    if (stock <= 0) {
-        showToast('Этот товар закончился и недоступен для покупки', 'warning');
-        return;
-    }
-    
+    if (!currentToken) { showToast('Войдите в аккаунт, чтобы добавлять товары', 'warning'); showAuthModal(); return; }
+    if (stock <= 0) { showToast('Этот товар закончился и недоступен для покупки', 'warning'); return; }
     const existingItem = cart.find(item => item.product_id === productId);
     if (existingItem) existingItem.quantity += 1;
     else cart.push({ product_id: productId, title, price, quantity: 1, image_url: imageUrl });
-    
     localStorage.setItem('cart', JSON.stringify(cart));
     updateCartCount();
     showToast(`${title} добавлен в корзину`, 'success');
@@ -498,30 +482,10 @@ function renderCart() {
         const itemTotal = item.price * item.quantity;
         total += itemTotal;
         const cartImgUrl = item.image_url || `https://picsum.photos/seed/${item.product_id}/80/80`;
-        return `
-            <div class="bg-white rounded-lg p-4 shadow flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <img src="${cartImgUrl}" class="w-20 h-20 rounded object-cover" onerror="this.src='https://picsum.photos/seed/${item.product_id}/80/80'">
-                    <div><h3 class="font-bold text-gray-800">${item.title}</h3><p class="text-gray-500">${item.price.toLocaleString()} ₽ / шт.</p></div>
-                </div>
-                <div class="flex items-center space-x-6">
-                    <div class="flex items-center space-x-2 border rounded-lg bg-gray-50">
-                        <button onclick="changeQuantity(${item.product_id}, -1)" class="px-3 py-1 text-gray-600 hover:bg-gray-200 rounded-l-lg font-bold">−</button>
-                        <span class="px-2 font-bold min-w-[20px] text-center">${item.quantity}</span>
-                        <button onclick="changeQuantity(${item.product_id}, 1)" class="px-3 py-1 text-gray-600 hover:bg-gray-200 rounded-r-lg font-bold">+</button>
-                    </div>
-                    <span class="text-xl font-bold text-primary-500 min-w-[100px] text-right">${itemTotal.toLocaleString()} ₽</span>
-                    <button onclick="removeFromCart(${item.product_id})" class="text-red-400 hover:text-red-600 p-2"><i class="fas fa-trash"></i></button>
-                </div>
-            </div>`;
+        return `<div class="bg-white rounded-lg p-4 shadow flex items-center justify-between"> <div class="flex items-center space-x-4"> <img src="${cartImgUrl}" class="w-20 h-20 rounded object-cover" onerror="this.src='https://picsum.photos/seed/${item.product_id}/80/80'"> <div><h3 class="font-bold text-gray-800">${item.title}</h3><p class="text-gray-500">${item.price.toLocaleString()} ₽ / шт.</p></div> </div> <div class="flex items-center space-x-6"> <div class="flex items-center space-x-2 border rounded-lg bg-gray-50"> <button onclick="changeQuantity(${item.product_id}, -1)" class="px-3 py-1 text-gray-600 hover:bg-gray-200 rounded-l-lg font-bold">−</button> <span class="px-2 font-bold min-w-[20px] text-center">${item.quantity}</span> <button onclick="changeQuantity(${item.product_id}, 1)" class="px-3 py-1 text-gray-600 hover:bg-gray-200 rounded-r-lg font-bold">+</button> </div> <span class="text-xl font-bold text-primary-500 min-w-[100px] text-right">${itemTotal.toLocaleString()} ₽</span> <button onclick="removeFromCart(${item.product_id})" class="text-red-400 hover:text-red-600 p-2"><i class="fas fa-trash"></i></button> </div> </div>`;
     }).join('');
     const deliveryCost = total >= 5000 ? 0 : Math.max(200, Math.min(total * 0.05, 1000));
-    document.getElementById('cart-total').innerHTML = `
-        <div class="space-y-2 text-right">
-            <div class="flex justify-between text-gray-600"><span>Товары:</span><span>${total.toLocaleString()} ₽</span></div>
-            <div class="flex justify-between text-gray-600"><span>Доставка:</span><span>${deliveryCost === 0 ? 'Бесплатно' : deliveryCost.toLocaleString() + ' ₽'}</span></div>
-            <div class="flex justify-between text-xl font-bold text-primary-500 pt-2 border-t"><span>Итого:</span><span>${(total + deliveryCost).toLocaleString()} ₽</span></div>
-        </div>`;
+    document.getElementById('cart-total').innerHTML = `<div class="space-y-2 text-right"> <div class="flex justify-between text-gray-600"><span>Товары:</span><span>${total.toLocaleString()} ₽</span></div> <div class="flex justify-between text-gray-600"><span>Доставка:</span><span>${deliveryCost === 0 ? 'Бесплатно' : deliveryCost.toLocaleString() + ' ₽'}</span></div> <div class="flex justify-between text-xl font-bold text-primary-500 pt-2 border-t"><span>Итого:</span><span>${(total + deliveryCost).toLocaleString()} ₽</span></div> </div>`;
 }
 
 function changeQuantity(productId, delta) {
@@ -605,12 +569,12 @@ function logout() {
     showToast('Вы вышли из аккаунта', 'info');
 }
 
-// === АДМИН-ПАНЕЛЬ ===
 function showAdminPanel() {
     hideAllSections();
     document.getElementById('admin-section').classList.remove('hidden');
     loadAdminData();
 }
+
 async function loadAdminData() {
     try {
         const statsRes = await fetch(`${API_BASE}/admin/stats`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
@@ -624,14 +588,11 @@ async function loadAdminData() {
         const usersRes = await fetch(`${API_BASE}/admin/users`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
         if (usersRes.ok) {
             const users = await usersRes.json();
-            document.getElementById('admin-users-list').innerHTML = users.map(u => `
-                <div class="flex justify-between items-center p-3 bg-gray-50 rounded border">
-                    <div><span class="font-bold text-gray-800">${u.email}</span><span class="text-xs bg-gray-200 px-2 py-1 rounded ml-2">${u.role}</span></div>
-                    ${u.id !== currentUser.id ? `<button onclick="deleteUser(${u.id})" class="text-red-500 hover:text-red-700 text-sm font-bold">Удалить</button>` : '<span class="text-xs text-gray-400">Это вы</span>'}
-                </div>`).join('');
+            document.getElementById('admin-users-list').innerHTML = users.map(u => `<div class="flex justify-between items-center p-3 bg-gray-50 rounded border"> <div><span class="font-bold text-gray-800">${u.email}</span><span class="text-xs bg-gray-200 px-2 py-1 rounded ml-2">${u.role}</span></div> ${u.id !== currentUser.id ? `<button onclick="deleteUser(${u.id})" class="text-red-500 hover:text-red-700 text-sm font-bold">Удалить</button>` : '<span class="text-xs text-gray-400">Это вы</span>'} </div>`).join('');
         }
     } catch (e) { showToast('Ошибка загрузки данных админа', 'error'); }
 }
+
 async function deleteUser(userId) {
     if (!confirm('Удалить этого пользователя?')) return;
     try {
