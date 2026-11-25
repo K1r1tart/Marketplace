@@ -9,13 +9,7 @@
     <script>
         tailwind.config = {
             darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        primary: { 500: '#7c3aed', 600: '#6d28d9', 700: '#5b21b6' }
-                    }
-                }
-            }
+            theme: { extend: { colors: { primary: { 500: '#7c3aed', 600: '#6d28d9', 700: '#5b21b6' } } } }
         }
     </script>
     <style>
@@ -26,18 +20,12 @@
         .category-card { transition: all 0.2s ease; cursor: pointer; }
         .category-card:hover { transform: translateY(-2px); }
         .category-card.active { background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%); border-color: #7c3aed; }
-        
-        /* Toast уведомления */
         .toast { animation: slideIn 0.3s ease; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
-        
-        /* Скелетоны */
         .skeleton { background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .dark .skeleton { background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%); background-size: 200% 100%; }
-        
-        /* Тёмная тема */
         .dark body { background: #0f172a; color: #e2e8f0; }
         .dark .bg-white { background: #1e293b; }
         .dark .text-gray-800 { color: #f1f5f9; }
@@ -53,10 +41,8 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <!-- Toast контейнер -->
     <div id="toast-container" class="fixed top-20 right-4 z-50 space-y-2"></div>
 
-    <!-- Шапка -->
     <header class="bg-white shadow-md sticky top-0 z-40">
         <div class="container mx-auto px-4 py-3">
             <div class="flex items-center justify-between">
@@ -64,17 +50,12 @@
                     <i class="fas fa-store text-3xl text-primary-500"></i>
                     <span class="text-2xl font-bold text-gray-800">Marketplace</span>
                 </a>
-
                 <div class="flex-1 max-w-2xl mx-8">
                     <div class="relative">
-                        <input type="text" id="search-input" placeholder="Искать товары..."
-                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500">
-                        <button class="absolute right-3 top-2 text-gray-400 hover:text-primary-500">
-                            <i class="fas fa-search"></i>
-                        </button>
+                        <input type="text" id="search-input" placeholder="Искать товары..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500">
+                        <button class="absolute right-3 top-2 text-gray-400 hover:text-primary-500"><i class="fas fa-search"></i></button>
                     </div>
                 </div>
-
                 <div class="flex items-center space-x-4">
                     <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
                         <i id="theme-icon" class="fas fa-moon text-gray-600"></i>
@@ -83,13 +64,14 @@
                         <button onclick="goHome()" class="text-gray-700 hover:text-primary-500 font-medium">Главная</button>
                         <button onclick="showCatalog()" class="text-gray-700 hover:text-primary-500 font-medium">Каталог</button>
                         <button onclick="showOrders()" class="text-gray-700 hover:text-primary-500 font-medium">Мои заказы</button>
+                        <button id="admin-nav-btn" onclick="showAdminPanel()" class="hidden text-red-600 hover:text-red-800 font-bold">Админ-панель</button>
                     </nav>
                     <div id="nav-auth" class="flex items-center space-x-4">
                         <button onclick="showAuthModal()" class="btn-primary text-white px-6 py-2 rounded-lg hover:opacity-90 transition">
                             <i class="fas fa-user mr-2"></i>Войти
                         </button>
                     </div>
-                    <div id="nav-user" class="hidden flex items-center space-x-4">
+                    <div id="nav-user" class="hidden items-center space-x-4">
                         <button onclick="showCart()" class="relative text-gray-700 hover:text-primary-500">
                             <i class="fas fa-shopping-cart text-2xl"></i>
                             <span id="cart-count" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">0</span>
@@ -98,78 +80,47 @@
                             <span id="user-email" class="text-gray-700 text-sm"></span>
                             <span id="user-role" class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-medium"></span>
                         </div>
-                        <button onclick="logout()" class="text-red-500 hover:text-red-700">
-                            <i class="fas fa-sign-out-alt text-xl"></i>
-                        </button>
+                        <button onclick="logout()" class="text-red-500 hover:text-red-700"><i class="fas fa-sign-out-alt text-xl"></i></button>
                     </div>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- Категории -->
     <section class="container mx-auto px-4 py-8">
         <h2 class="text-3xl font-bold mb-6 text-gray-800">Популярные категории</h2>
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('all')">
-                <i class="fas fa-th text-4xl text-gray-500 mb-2"></i>
-                <p class="font-medium text-gray-700">Все</p>
-            </div>
-            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('electronics')">
-                <i class="fas fa-laptop text-4xl text-blue-500 mb-2"></i>
-                <p class="font-medium text-gray-700">Электроника</p>
-            </div>
-            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('clothing')">
-                <i class="fas fa-tshirt text-4xl text-pink-500 mb-2"></i>
-                <p class="font-medium text-gray-700">Одежда</p>
-            </div>
-            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('home')">
-                <i class="fas fa-home text-4xl text-green-500 mb-2"></i>
-                <p class="font-medium text-gray-700">Дом</p>
-            </div>
-            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('books')">
-                <i class="fas fa-book text-4xl text-yellow-500 mb-2"></i>
-                <p class="font-medium text-gray-700">Книги</p>
-            </div>
-            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('sport')">
-                <i class="fas fa-futbol text-4xl text-orange-500 mb-2"></i>
-                <p class="font-medium text-gray-700">Спорт</p>
-            </div>
+            <div class="category-card active bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('all')"><i class="fas fa-th text-4xl text-gray-500 mb-2"></i><p class="font-medium text-gray-700">Все</p></div>
+            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('electronics')"><i class="fas fa-laptop text-4xl text-blue-500 mb-2"></i><p class="font-medium text-gray-700">Электроника</p></div>
+            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('clothing')"><i class="fas fa-tshirt text-4xl text-pink-500 mb-2"></i><p class="font-medium text-gray-700">Одежда</p></div>
+            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('home')"><i class="fas fa-home text-4xl text-green-500 mb-2"></i><p class="font-medium text-gray-700">Дом</p></div>
+            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('books')"><i class="fas fa-book text-4xl text-yellow-500 mb-2"></i><p class="font-medium text-gray-700">Книги</p></div>
+            <div class="category-card bg-white rounded-lg p-6 text-center shadow border-2 border-transparent" onclick="filterByCategory('sport')"><i class="fas fa-futbol text-4xl text-orange-500 mb-2"></i><p class="font-medium text-gray-700">Спорт</p></div>
         </div>
     </section>
 
-    <!-- Основной контент -->
     <main class="container mx-auto px-4 py-8">
         <div id="welcome-section" class="text-center py-20">
             <h1 class="text-5xl font-bold text-gray-800 mb-4">Добро пожаловать в Marketplace</h1>
-            <p class="text-xl text-gray-600 mb-8">Тысячи товаров по лучшим ценам</p>
-            <button onclick="showAuthModal()" class="btn-primary text-white px-8 py-3 rounded-lg text-lg hover:opacity-90 transition">
-                Начать покупки
-            </button>
+            <p class="text-xl text-gray-600 mb-8">Тысячи товаров по лучшим ценам. Каталог доступен всем — вход нужен только для покупок.</p>
+            <button onclick="showCatalog()" class="btn-primary text-white px-8 py-3 rounded-lg text-lg hover:opacity-90 transition mr-3">Смотреть каталог</button>
+            <button onclick="showAuthModal()" class="bg-gray-200 text-gray-800 px-8 py-3 rounded-lg text-lg hover:bg-gray-300 transition">Начать покупки</button>
         </div>
 
         <div id="catalog-section" class="hidden">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-3xl font-bold text-gray-800">Каталог товаров</h2>
-                <button id="add-product-btn" onclick="showAddProductModal()" class="hidden btn-primary text-white px-6 py-2 rounded-lg">
-                    <i class="fas fa-plus mr-2"></i>Добавить товар
-                </button>
+                <button id="add-product-btn" onclick="showAddProductModal()" class="hidden btn-primary text-white px-6 py-2 rounded-lg"><i class="fas fa-plus mr-2"></i>Добавить товар</button>
             </div>
-            <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            </div>
+            <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
         </div>
 
         <div id="cart-section" class="hidden">
             <h2 class="text-3xl font-bold mb-6 text-gray-800">Корзина</h2>
             <div id="cart-items" class="space-y-4"></div>
             <div class="mt-8 bg-white rounded-lg p-6 shadow">
-                <div class="flex justify-between items-center">
-                    <span class="text-xl font-bold text-gray-800">Итого:</span>
-                    <span id="cart-total" class="text-2xl font-bold text-primary-500">0 ₽</span>
-                </div>
-                <button onclick="checkout()" class="w-full btn-primary text-white py-3 rounded-lg mt-4 text-lg">
-                    Оформить заказ
-                </button>
+                <div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-800">Итого:</span><span id="cart-total" class="text-2xl font-bold text-primary-500">0 ₽</span></div>
+                <button onclick="checkout()" class="w-full btn-primary text-white py-3 rounded-lg mt-4 text-lg">Оформить заказ</button>
             </div>
         </div>
 
@@ -177,95 +128,61 @@
             <h2 class="text-3xl font-bold mb-6 text-gray-800">Мои заказы</h2>
             <div id="orders-list" class="space-y-4"></div>
         </div>
+
+        <div id="admin-section" class="hidden">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Панель Администратора</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white p-6 rounded-lg shadow text-center"><div class="text-3xl font-bold text-primary-500" id="stat-users">0</div><div class="text-gray-500">Пользователей</div></div>
+                <div class="bg-white p-6 rounded-lg shadow text-center"><div class="text-3xl font-bold text-blue-500" id="stat-products">0</div><div class="text-gray-500">Товаров</div></div>
+                <div class="bg-white p-6 rounded-lg shadow text-center"><div class="text-3xl font-bold text-green-500" id="stat-orders">0</div><div class="text-gray-500">Заказов</div></div>
+                <div class="bg-white p-6 rounded-lg shadow text-center"><div class="text-3xl font-bold text-yellow-500" id="stat-revenue">0 ₽</div><div class="text-gray-500">Выручка</div></div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Управление пользователями</h3>
+                <div id="admin-users-list" class="space-y-2"></div>
+            </div>
+        </div>
     </main>
 
-    <!-- Модальное окно авторизации -->
     <div id="auth-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg p-8 max-w-md w-full">
             <div class="flex justify-between items-center mb-6">
                 <h2 id="modal-title" class="text-2xl font-bold text-gray-800">Вход</h2>
-                <button onclick="closeModal('auth-modal')" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
+                <button onclick="closeModal('auth-modal')" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times text-xl"></i></button>
             </div>
-            <form id="auth-form" onsubmit="handleAuth(event)">
-                <div class="mb-4">
-                    <label class="block text-gray-700 mb-2">Email</label>
-                    <input type="email" id="email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 mb-2">Пароль</label>
-                    <input type="password" id="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500">
-                </div>
+            <form onsubmit="handleAuth(event)">
+                <div class="mb-4"><label class="block text-gray-700 mb-2">Email</label><input type="email" id="email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg"></div>
+                <div class="mb-4"><label class="block text-gray-700 mb-2">Пароль</label><input type="password" id="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg"></div>
                 <div id="role-field" class="mb-4 hidden">
                     <label class="block text-gray-700 mb-2">Роль</label>
-                    <select id="role" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500">
-                        <option value="buyer">Покупатель</option>
-                        <option value="seller">Продавец</option>
-                        <option value="admin">Администратор</option>
-                    </select>
+                    <select id="role" class="w-full px-4 py-2 border border-gray-300 rounded-lg"><option value="buyer">Покупатель</option><option value="seller">Продавец</option><option value="admin">Администратор</option></select>
                 </div>
-                <button type="submit" class="w-full btn-primary text-white py-2 rounded-lg">
-                    <span id="submit-btn-text">Войти</span>
-                </button>
+                <button type="submit" class="w-full btn-primary text-white py-2 rounded-lg"><span id="submit-btn-text">Войти</span></button>
             </form>
-            <div class="mt-4 text-center">
-                <button id="toggle-auth" onclick="toggleAuthMode()" class="text-primary-500 hover:underline">
-                    Нет аккаунта? Зарегистрироваться
-                </button>
-            </div>
+            <div class="mt-4 text-center"><button id="toggle-auth" onclick="toggleAuthMode()" class="text-primary-500 hover:underline">Нет аккаунта? Зарегистрироваться</button></div>
         </div>
     </div>
 
-    <!-- Модальное окно добавления товара -->
     <div id="add-product-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg p-8 max-w-md w-full">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-800">Добавить товар</h2>
-                <button onclick="closeModal('add-product-modal')" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
+                <button onclick="closeModal('add-product-modal')" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times text-xl"></i></button>
             </div>
             <form onsubmit="handleAddProduct(event)">
-                <div class="mb-4">
-                    <label class="block text-gray-700 mb-2">Название</label>
-                    <input type="text" id="product-title" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 mb-2">Описание</label>
-                    <textarea id="product-description" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500"></textarea>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 mb-2">Категория</label>
-                    <select id="product-category" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500">
-                        <option value="electronics">Электроника</option>
-                        <option value="clothing">Одежда</option>
-                        <option value="home">Дом</option>
-                        <option value="books">Книги</option>
-                        <option value="sport">Спорт</option>
-                        <option value="other">Другое</option>
-                    </select>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 mb-2">Цена</label>
-                    <input type="number" id="product-price" required min="0" step="0.01" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 mb-2">Остаток</label>
-                    <input type="number" id="product-stock" required min="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500">
-                </div>
-                <button type="submit" class="w-full btn-primary text-white py-2 rounded-lg">
-                    Добавить
-                </button>
+                <div class="mb-4"><label class="block text-gray-700 mb-2">Название</label><input type="text" id="product-title" required class="w-full px-4 py-2 border border-gray-300 rounded-lg"></div>
+                <div class="mb-4"><label class="block text-gray-700 mb-2">Описание</label><textarea id="product-description" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
+                <div class="mb-4"><label class="block text-gray-700 mb-2">Категория</label><select id="product-category" required class="w-full px-4 py-2 border border-gray-300 rounded-lg"><option value="electronics">Электроника</option><option value="clothing">Одежда</option><option value="home">Дом</option><option value="books">Книги</option><option value="sport">Спорт</option><option value="other">Другое</option></select></div>
+                <div class="mb-4"><label class="block text-gray-700 mb-2">Цена</label><input type="number" id="product-price" required min="0" step="0.01" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></div>
+                <div class="mb-4"><label class="block text-gray-700 mb-2">Остаток</label><input type="number" id="product-stock" required min="0" value="10" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></div>
+                <div class="mb-4"><label class="block text-gray-700 mb-2">Изображение товара</label><input type="file" id="product-image" accept="image/*" class="w-full px-4 py-2 border border-gray-300 rounded-lg"><p class="text-xs text-gray-500 mt-1">Необязательно. Если не выбрать, будет использована картинка-заглушка.</p></div>
+                <button type="submit" class="w-full btn-primary text-white py-2 rounded-lg">Добавить</button>
             </form>
         </div>
     </div>
 
-    <!-- Модальное окно товара (детальная страница) -->
     <div id="product-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div id="product-modal-content"></div>
-        </div>
+        <div class="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"><div id="product-modal-content"></div></div>
     </div>
 
     <script src="/static/js/app.js"></script>

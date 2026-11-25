@@ -8,6 +8,7 @@ class ProductCreate(BaseModel):
     price: float = Field(..., gt=0)
     stock: int = Field(default=0, ge=0)
     category: str = Field(default="other", max_length=50)
+    image_url: Optional[str] = ""
 
 
 class ProductUpdate(BaseModel):
@@ -25,7 +26,8 @@ class ProductOut(BaseModel):
     price: float
     stock: int
     category: str
-    views: int  # ← ДОБАВЛЕНО: теперь счётчик не будет undefined
+    views: int
+    image_url: Optional[str] = "" 
     seller_id: int
 
     class Config:

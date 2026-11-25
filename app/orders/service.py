@@ -1,4 +1,5 @@
 import asyncio
+from app.auth.models import User
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +34,6 @@ async def create_order(
                 detail=f"Недостаточно товара '{product.title}' на складе",
             )
 
-        # Списываем со склада
         product.stock -= item_data.quantity
         total_amount += product.price * item_data.quantity
 
@@ -53,18 +53,15 @@ async def create_order(
     order = models.Order(
         user_id=user_id,
         total_amount=total_amount,
-        delivery_cost=delivery_cost,  # ← НОВОЕ ПОЛЕ
+        delivery_cost=delivery_cost,
         status=models.OrderStatus.PENDING.value,
         items=order_items,
     )
 
     db.add(order)
     await db.commit()
-
-    # ⚠️ КРИТИЧЕСКИ ВАЖНО: Обновляем объект, чтобы получить order.id и избежать MissingGreenlet
     await db.refresh(order)
 
-    # 4. Перечитываем заказ из БД с явной подгрузкой items (eager loading)
     result = await db.execute(
         select(models.Order)
         .options(selectinload(models.Order.items))
@@ -72,9 +69,14 @@ async def create_order(
     )
     fresh_order = result.scalar_one()
 
-    # 5. Отправляем задачу в Celery (асинхронная обработка!)
+    # 4. Получаем email покупателя из БД
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    recipient_email = user.email if user else os.getenv("SMTP_FROM", "noreply@marketplace.local")
+
+    # 5. Отправляем задачу в Celery (асинхронно!)
     try:
-        send_receipt_email_task.delay(fresh_order.id)
+        send_receipt_email_task.delay(fresh_order.id, recipient_email)
     except Exception as e:
         print(f"⚠️ Celery недоступен, задача не отправлена: {e}")
 
@@ -83,7 +85,6 @@ async def create_order(
 
 async def pay_order(db: AsyncSession, order_id: int, user_id: int) -> models.Order:
     """Эмуляция оплаты заказа через внешний платежный шлюз"""
-    # 1. Находим заказ
     result = await db.execute(
         select(models.Order)
         .options(selectinload(models.Order.items))
@@ -100,17 +101,20 @@ async def pay_order(db: AsyncSession, order_id: int, user_id: int) -> models.Ord
     if order.status == models.OrderStatus.PAID.value:
         raise HTTPException(status_code=400, detail="Заказ уже оплачен")
 
-    # 2. Эмулируем задержку сетевого запроса к банку (1.5 секунды)
+    # Эмуляция задержки банка
     await asyncio.sleep(1.5)
 
-    # 3. Меняем статус на оплаченный
     order.status = models.OrderStatus.PAID.value
     await db.commit()
     await db.refresh(order)
 
-    # 4. Отправляем финальный чек на email (асинхронно через Celery)
+    # Получаем email покупателя
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    recipient_email = user.email if user else os.getenv("SMTP_FROM", "noreply@marketplace.local")
+
     try:
-        send_receipt_email_task.delay(order.id)
+        send_receipt_email_task.delay(order.id, recipient_email)
     except Exception as e:
         print(f"⚠️ Не удалось отправить чек после оплаты: {e}")
 

@@ -2,6 +2,9 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import UploadFile, File
+import os
+import uuid
 
 from app.common.database import get_db
 from app.auth.dependencies import require_role
@@ -86,3 +89,39 @@ async def register_view(
     if product:
         product.views += 1
         await db.commit()
+
+# Убедитесь, что папка существует
+UPLOAD_DIR = "app/static/uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@router.post("/{product_id}/upload-image", response_model=schemas.ProductOut)
+async def upload_product_image(
+    product_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[user_models.User, Depends(require_role(["seller", "admin"]))],
+    file: UploadFile = File(...),  # ← ВАЖНО: параметр с '=' должен быть ПОСЛЕДНИМ!
+):
+    """Загрузка изображения для товара"""
+    result = await db.execute(select(models.Product).where(models.Product.id == product_id))
+    product = result.scalar_one_or_none()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Товар не найден")
+    if product.seller_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Нет прав на изменение этого товара")
+
+    # Генерируем уникальное имя файла
+    ext = file.filename.split(".")[-1] if file.filename else "jpg"
+    filename = f"{uuid.uuid4()}.{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+
+    # Сохраняем файл
+    with open(filepath, "wb") as buffer:
+        buffer.write(await file.read())
+
+    # Обновляем URL в БД
+    product.image_url = f"/static/uploads/{filename}"
+    await db.commit()
+    await db.refresh(product)
+    
+    return product

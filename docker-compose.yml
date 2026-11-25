@@ -9,6 +9,8 @@ services:
       - DATABASE_URL=postgresql+asyncpg://marketplace:marketplace_pass@postgres:5432/marketplace
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=amqp://mq_user:mq_pass@rabbitmq:5672//
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,6 +29,8 @@ services:
       - DATABASE_URL=postgresql+asyncpg://marketplace:marketplace_pass@postgres:5432/marketplace
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=amqp://mq_user:mq_pass@rabbitmq:5672//
+    env_file:
+      - .env
     depends_on:
       - rabbitmq
       - redis
