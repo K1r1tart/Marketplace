@@ -1,41 +1,42 @@
-# 🛒 Marketplace API
+# 🛒 Marketplace
 
-Полноценный модульный маркетплейс с асинхронной обработкой задач, динамическим ценообразованием и внешними интеграциями.
+Полнофункциональный модульный маркетплейс с асинхронной обработкой задач, кэшированием, рекомендательной системой и реальными внешними интеграциями.
 
-![CI/CD](https://github.com/K1r1tart/Marketplace/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791)
+![Tests](https://img.shields.io/badge/Tests-pytest-brightgreen)
 
-## 🚀 Особенности проекта
+## ⚠️ Важно: тестовый режим платежей
 
-- **Модульная архитектура:** Чёткое разделение на `auth`, `catalog`, `orders`, `notifications`, `analytics`, `delivery`.
-- **ML-элементы:** Динамическое ценообразование на основе счётчика просмотров товаров (Celery Beat).
-- **Высокая производительность:** Кэширование каталога и рекомендаций в Redis с событийной инвалидацией.
-- **Асинхронность:** Все операции с БД и внешними сервисами через `asyncio` и Celery-очереди.
-- **3 внешние интеграции:** 
-  1. Отправка HTML-чеков через Gmail SMTP.
-  2. Эмуляция платёжного шлюза (Mock Payment Gateway).
-  3. Эмуляция сервиса доставки (расчёт стоимости).
-- **Мониторинг:** Эндпоинты `/health` и `/metrics` (Prometheus format).
-- **Современный UI:** Tailwind CSS, тёмная тема, toast-уведомления, скелетоны загрузки.
+Интеграция с платёжным шлюзом **ЮKassa** работает в **тестовом режиме (sandbox)**. Это означает:
+- Реальные деньги **не списываются**.
+- Для тестирования оплаты используются специальные тестовые карты (например, `1111 1111 1111 1026`).
+- Все платежи отображаются в личном кабинете ЮKassa с пометкой "Тестовый магазин".
+- Для перехода в production-режим необходимо заменить тестовые ключи API на боевые в файле `.env`.
 
-## 🏗 Архитектура системы
+## ✨ Ключевые особенности
+
+- 🏗 **Модульная архитектура**: Чёткое разделение на `auth`, `catalog`, `orders`, `payments`, `delivery`, `notifications`, `analytics` и `admin`.
+- ⚡ **Асинхронность**: FastAPI + SQLAlchemy 2.0 (async) + asyncpg для высокой производительности.
+- 🧠 **Рекомендательная система**: Контентная фильтрация на основе категории и ранжирование по популярности (`views`), с исключением товаров с нулевым остатком.
+- 🚀 **Фоновые задачи**: Celery + RabbitMQ для асинхронной отправки email-чеков и динамического пересчёта цен.
+- 💳 **Реальная интеграция**: Платёжный шлюз ЮKassa (Sandbox) с созданием платежей и проверкой статуса.
+- 📧 **Email-уведомления**: Отправка HTML-чеков через Gmail SMTP (с graceful degradation при недоступности).
+- 👥 **Ролевая модель (RBAC)**: Строгое разграничение прав для `buyer`, `seller` и `admin`.
+- 🛡 **Мягкое удаление (Soft Delete)**: Защита ссылочной целостности БД — товары, участвующие в заказах, нельзя удалить физически, их можно только деактивировать (`stock = 0`).
+- ✅ **Автотесты**: Покрытие ключевых сценариев (Auth, CRUD, Orders, RBAC, Health) с помощью `pytest` и `httpx`.
+- 🌙 **Современный UI**: Адаптивный SPA на Vanilla JS + Tailwind CSS с поддержкой тёмной темы, toast-уведомлениями и скелетонами загрузки.
+
+## 🏗 Архитектура
 
 ```mermaid
 graph TD
-    Client[Frontend: Vanilla JS + Tailwind] -->|HTTP/REST| API[FastAPI App]
-    API -->|SQL Async| DB[(PostgreSQL)]
-    API -->|Cache| Redis[(Redis)]
-    API -->|Publish Task| RMQ[RabbitMQ]
-    RMQ -->|Consume| CW[Celery Worker]
-    CB[Celery Beat] -->|Schedule| CW
-    CW -->|Read/Write| DB
-    CW -->|Send Email| SMTP[Gmail SMTP]
-    CW -->|Mock API| Payment[Mock Payment]
-    CW -->|Mock API| Delivery[Mock Delivery]
-    
-    subgraph CI/CD
-    GH[GitHub Actions] -->|Lint & Test| API
-    GH -->|Build| Docker[Docker Image]
-    end
+    Client[Frontend: Vanilla JS + Tailwind] -->|REST + JWT| API[FastAPI App]
+    API -->|async SQL| DB[(PostgreSQL)]
+    API -->|cache| Redis[(Redis)]
+    API -->|publish| RMQ[RabbitMQ]
+    RMQ -->|consume| CW[Celery Worker]
+    CW -->|read/write| DB
+    CW -->|SMTP| Gmail[Gmail: HTML-чеки]
+    API -->|Payment API| YK[ЮKassa Sandbox]
