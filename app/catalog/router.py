@@ -44,21 +44,29 @@ async def create_product(
 @router.put("/{product_id}", response_model=schemas.ProductOut)
 async def update_product(
     product_id: int,
-    data: schemas.ProductUpdate,
+    data: schemas.ProductCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[user_models.User, Depends(require_role(["seller", "admin"]))],
 ):
+    """Редактировать товар (только владелец или админ)"""
     result = await db.execute(select(models.Product).where(models.Product.id == product_id))
     product = result.scalar_one_or_none()
 
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
 
     if product.seller_id != current_user.id and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="No permission to edit this product")
+        raise HTTPException(status_code=403, detail="Нет прав на редактирование этого товара")
 
-    updated = await service.update_product(db, product_id, data)
-    return updated
+    product.title = data.title
+    product.description = data.description
+    product.price = data.price
+    product.stock = data.stock
+    product.category = data.category
+
+    await db.commit()
+    await db.refresh(product)
+    return product
 
 
 @router.delete("/{product_id}", status_code=204)
@@ -67,16 +75,31 @@ async def delete_product(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[user_models.User, Depends(require_role(["seller", "admin"]))],
 ):
+    """Удалить товар (полное удаление, если он не в заказах)"""
     result = await db.execute(select(models.Product).where(models.Product.id == product_id))
     product = result.scalar_one_or_none()
 
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
 
     if product.seller_id != current_user.id and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="No permission to delete this product")
+        raise HTTPException(status_code=403, detail="Нет прав на удаление этого товара")
 
-    await service.delete_product(db, product_id)
+    # === ПРОВЕРКА ЦЕЛОСТНОСТИ: участвует ли товар в заказах? ===
+    from app.orders.models import OrderItem
+    check = await db.execute(
+        select(OrderItem.id).where(OrderItem.product_id == product_id).limit(1)
+    )
+    
+    if check.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Товар уже участвует в заказах. Его нельзя удалить полностью. Чтобы снять его с продажи, измените остаток (stock) на 0 в настройках товара."
+        )
+
+    # Если товар ни разу не покупали — удаляем его полностью
+    await db.delete(product)
+    await db.commit()
 
 @router.post("/{product_id}/view", status_code=204)
 async def register_view(

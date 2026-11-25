@@ -1,5 +1,4 @@
 import asyncio
-from app.auth.models import User
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +7,8 @@ from fastapi import HTTPException
 from app.orders import models, schemas
 from app.catalog.models import Product
 from app.notifications.tasks import send_receipt_email_task
-from app.delivery.service import delivery_service  # ← НОВЫЙ ИМПОРТ
+from app.delivery.service import delivery_service
+from app.payments.yookassa_service import create_payment  # ← НОВЫЙ ИМПОРТ
 
 
 async def create_order(
@@ -17,7 +17,6 @@ async def create_order(
     total_amount = 0.0
     order_items = []
 
-    # 1. Проверяем товары и считаем сумму
     for item_data in data.items:
         result = await db.execute(
             select(Product).where(Product.id == item_data.product_id)
@@ -25,14 +24,9 @@ async def create_order(
         product = result.scalar_one_or_none()
 
         if not product:
-            raise HTTPException(
-                status_code=404, detail=f"Товар с ID {item_data.product_id} не найден"
-            )
+            raise HTTPException(status_code=404, detail=f"Товар с ID {item_data.product_id} не найден")
         if product.stock < item_data.quantity:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Недостаточно товара '{product.title}' на складе",
-            )
+            raise HTTPException(status_code=400, detail=f"Недостаточно товара '{product.title}' на складе")
 
         product.stock -= item_data.quantity
         total_amount += product.price * item_data.quantity
@@ -45,11 +39,9 @@ async def create_order(
             )
         )
 
-    # 2. Рассчитываем стоимость доставки (эмуляция внешнего API)
     delivery_info = await delivery_service.calculate_delivery(total_amount)
     delivery_cost = delivery_info["cost"]
 
-    # 3. Создаем заказ
     order = models.Order(
         user_id=user_id,
         total_amount=total_amount,
@@ -69,22 +61,21 @@ async def create_order(
     )
     fresh_order = result.scalar_one()
 
-    # 4. Получаем email покупателя из БД
+    from app.auth.models import User
     user_result = await db.execute(select(User).where(User.id == user_id))
     user = user_result.scalar_one_or_none()
-    recipient_email = user.email if user else os.getenv("SMTP_FROM", "noreply@marketplace.local")
+    recipient_email = user.email if user else "noreply@marketplace.local"
 
-    # 5. Отправляем задачу в Celery (асинхронно!)
     try:
         send_receipt_email_task.delay(fresh_order.id, recipient_email)
     except Exception as e:
-        print(f"⚠️ Celery недоступен, задача не отправлена: {e}")
+        print(f"⚠️ Celery недоступен: {e}")
 
     return fresh_order
 
 
-async def pay_order(db: AsyncSession, order_id: int, user_id: int) -> models.Order:
-    """Эмуляция оплаты заказа через внешний платежный шлюз"""
+async def pay_order(db: AsyncSession, order_id: int, user_id: int) -> dict:
+    """Создать платёж через ЮKassa"""
     result = await db.execute(
         select(models.Order)
         .options(selectinload(models.Order.items))
@@ -101,21 +92,18 @@ async def pay_order(db: AsyncSession, order_id: int, user_id: int) -> models.Ord
     if order.status == models.OrderStatus.PAID.value:
         raise HTTPException(status_code=400, detail="Заказ уже оплачен")
 
-    # Эмуляция задержки банка
-    await asyncio.sleep(1.5)
-
-    order.status = models.OrderStatus.PAID.value
-    await db.commit()
-    await db.refresh(order)
-
-    # Получаем email покупателя
-    user_result = await db.execute(select(User).where(User.id == user_id))
-    user = user_result.scalar_one_or_none()
-    recipient_email = user.email if user else os.getenv("SMTP_FROM", "noreply@marketplace.local")
+    total_amount = order.total_amount + order.delivery_cost
 
     try:
-        send_receipt_email_task.delay(order.id, recipient_email)
-    except Exception as e:
-        print(f"⚠️ Не удалось отправить чек после оплаты: {e}")
+        payment_data = create_payment(
+            order_id=order_id,
+            amount=total_amount,
+            description=f"Оплата заказа №{order_id}"
+        )
 
-    return order
+        order.payment_id = payment_data["payment_id"]
+        await db.commit()
+
+        return payment_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка создания платежа: {str(e)}")

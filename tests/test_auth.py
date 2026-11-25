@@ -4,7 +4,7 @@ from httpx import AsyncClient
 
 @pytest.mark.asyncio
 async def test_register_and_login(client: AsyncClient):
-    # 1. Тестируем регистрацию
+    """FR-01: Регистрация и вход пользователя"""
     response = await client.post(
         "/auth/register",
         json={
@@ -18,7 +18,6 @@ async def test_register_and_login(client: AsyncClient):
     assert data["email"] == "testuser@example.com"
     assert data["role"] == "buyer"
 
-    # 2. Тестируем логин
     response = await client.post(
         "/auth/login",
         data={"username": "testuser@example.com", "password": "securepassword123"},
@@ -27,9 +26,15 @@ async def test_register_and_login(client: AsyncClient):
     assert "access_token" in response.json()
     assert response.json()["token_type"] == "bearer"
 
-    # 3. Тестируем неверный пароль
     response = await client.post(
         "/auth/login",
         data={"username": "testuser@example.com", "password": "wrongpassword"},
     )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_me_without_token(client: AsyncClient):
+    """NFR Безопасность: Без токена — 401"""
+    response = await client.get("/auth/me")
     assert response.status_code == 401

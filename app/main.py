@@ -15,6 +15,7 @@ from app.auth.router import router as auth_router
 from app.catalog.router import router as catalog_router
 from app.orders.router import router as orders_router
 from app.admin.router import router as admin_router  
+from app.payments.router import router as payments_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,7 +36,8 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_sch
 app.include_router(auth_router)
 app.include_router(catalog_router)
 app.include_router(orders_router)
-app.include_router(admin_router)  
+app.include_router(admin_router)
+app.include_router(payments_router)
 
 # === ВАЖНО: ПРАВИЛЬНОЕ МОНТИРОВАНИЕ СТАТИКИ ===
 os.makedirs("app/static/uploads", exist_ok=True)

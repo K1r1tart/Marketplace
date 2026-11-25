@@ -41,16 +41,33 @@ def send_receipt_email_task(self, order_id: int, recipient_email: str):
                     logger.error(f"Заказ {order_id} не найден для отправки чека")
                     return {"status": "error", "reason": "order_not_found"}
 
-                # Формируем строки таблицы товаров
+                # === Получаем НАЗВАНИЯ товаров из таблицы products ===
+                from app.catalog.models import Product
+                product_ids = [item.product_id for item in order.items]
+                titles = {}
+                if product_ids:
+                    products_result = await db.execute(
+                        select(Product.id, Product.title).where(
+                            Product.id.in_(product_ids)
+                        )
+                    )
+                    titles = {pid: title for pid, title in products_result.all()}
+
+                # Формируем строки таблицы товаров (название вместо ID)
                 items_html = "".join(
-                    f"<tr><td style='padding:8px;border-bottom:1px solid #eee;'>{item.product_id}</td>"
+                    f"<tr>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee;'>{titles.get(item.product_id, f'Товар #{item.product_id}')}</td>"
                     f"<td style='padding:8px;border-bottom:1px solid #eee;text-align:center;'>{item.quantity}</td>"
                     f"<td style='padding:8px;border-bottom:1px solid #eee;text-align:right;'>{item.price_at_purchase:.2f} ₽</td>"
-                    f"<td style='padding:8px;border-bottom:1px solid #eee;text-align:right;'>{item.quantity * item.price_at_purchase:.2f} ₽</td></tr>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee;text-align:right;'>{item.quantity * item.price_at_purchase:.2f} ₽</td>"
+                    f"</tr>"
                     for item in order.items
                 )
 
                 final_total = order.total_amount + order.delivery_cost
+
+                # Человекочитаемый статус
+                status_readable = "Оплачен" if order.status == "paid" else "Ожидает оплаты"
 
                 # HTML-шаблон письма
                 html_body = f"""
@@ -76,7 +93,7 @@ def send_receipt_email_task(self, order_id: int, recipient_email: str):
                             <p style="margin:4px 0;">Товары: <b>{order.total_amount:.2f} ₽</b></p>
                             <p style="margin:4px 0;">Доставка: <b>{order.delivery_cost:.2f} ₽</b></p>
                             <p style="margin:4px 0;font-size:18px;">Итого к оплате: <b style="color:#7c3aed;">{final_total:.2f} ₽</b></p>
-                            <p style="margin:4px 0;">Статус: <b>{order.status.upper()}</b></p>
+                            <p style="margin:4px 0;">Статус: <b>{status_readable}</b></p>
                         </div>
                     </div>
                     <div style="background:#f9fafb;padding:16px;text-align:center;color:#6b7280;font-size:12px;">
@@ -90,7 +107,7 @@ def send_receipt_email_task(self, order_id: int, recipient_email: str):
                     try:
                         msg = MIMEMultipart("alternative")
                         msg["From"] = os.getenv("SMTP_FROM", "noreply@marketplace.local")
-                        msg["To"] = recipient_email          # ← РЕАЛЬНЫЙ email покупателя
+                        msg["To"] = recipient_email
                         msg["Subject"] = f"Чек за заказ №{order.id}"
                         msg.attach(MIMEText(html_body, "html", "utf-8"))
 

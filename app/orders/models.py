@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func, Enum
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
 from app.common.database import Base
 import enum
@@ -15,8 +15,9 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     total_amount = Column(Float, nullable=False)
-    delivery_cost = Column(Float, default=0.0, nullable=False)  # ← НОВОЕ ПОЛЕ
+    delivery_cost = Column(Float, default=0.0, nullable=False)
     status = Column(String, default=OrderStatus.PENDING.value, nullable=False)
+    payment_id = Column(String, nullable=True)  # ← Поле для ЮKassa (добавлено ранее)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")

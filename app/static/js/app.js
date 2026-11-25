@@ -6,14 +6,24 @@ let isLoginMode = true;
 let currentCategory = 'all';
 let currentSearch = '';
 let isDark = localStorage.getItem('theme') === 'dark';
+
 if (isDark) document.documentElement.classList.add('dark');
 
 document.addEventListener('DOMContentLoaded', () => {
     updateThemeIcon();
     updateCartCount();
     setupSearch();
-    if (currentToken) { loadUserProfile(); }
-    else { document.getElementById('welcome-section').classList.remove('hidden'); }
+    
+    const pendingOrderId = localStorage.getItem('pending_order_id');
+    if (pendingOrderId && currentToken) {
+        localStorage.removeItem('pending_order_id');
+        checkPaymentAfterReturn(parseInt(pendingOrderId));
+    } else if (currentToken) {
+        loadUserProfile();
+    } else {
+        document.getElementById('welcome-section').classList.remove('hidden');
+    }
+    loadProducts();
 });
 
 function showToast(message, type = 'success') {
@@ -46,8 +56,7 @@ function setupSearch() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             currentSearch = e.target.value.trim();
-            if (currentSearch) showCatalog();
-            else loadProducts();
+            loadProducts();
         }, 300);
     });
 }
@@ -184,6 +193,7 @@ async function loadUserProfile() {
 
 async function loadProducts() {
     const grid = document.getElementById('products-grid');
+    // Показываем скелетоны загрузки
     grid.innerHTML = Array(8).fill(0).map(() => `
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="h-48 skeleton"></div>
@@ -193,19 +203,60 @@ async function loadProducts() {
                 <div class="h-10 skeleton rounded w-full"></div>
             </div>
         </div>`).join('');
+    
     try {
         const params = new URLSearchParams();
         if (currentCategory && currentCategory !== 'all') params.append('category', currentCategory);
         if (currentSearch) params.append('search', currentSearch);
+        
         const response = await fetch(`${API_BASE}/products/?${params.toString()}`);
         if (!response.ok) throw new Error('Ошибка загрузки');
         const products = await response.json();
+        
+        // Инкремент просмотров в фоне
         products.forEach(p => { fetch(`${API_BASE}/products/${p.id}/view`, { method: 'POST' }).catch(() => {}); });
-        if (products.length === 0) { grid.innerHTML = '<p class="col-span-4 text-center text-gray-500 py-12">Товаров не найдено</p>'; return; }
-        grid.innerHTML = products.map(p => {
+
+        // === ФИЛЬТРАЦИЯ: покупатели видят только stock > 0. Продавцы/админы видят ВСЁ ===
+        const visibleProducts = products.filter(p => {
+            if (currentUser && (currentUser.id === p.seller_id || currentUser.role === 'admin')) {
+                return true; 
+            }
+            return p.stock > 0; 
+        });
+
+        if (visibleProducts.length === 0) { 
+            grid.innerHTML = '<p class="col-span-4 text-center text-gray-500 py-12">Активных товаров не найдено</p>'; 
+            return; 
+        }
+        
+        grid.innerHTML = visibleProducts.map(p => {
             const imgUrl = p.image_url ? p.image_url : `https://picsum.photos/seed/${p.id}/400/300`;
+            
+            // Безопасное экранирование кавычек для onclick
             const safeTitle = p.title.replace(/'/g, "\\'");
+            const safeDesc = (p.description || '').replace(/'/g, "\\'");
             const safeImg = (p.image_url || '').replace(/'/g, "\\'");
+            
+            const isOwner = currentUser && (currentUser.id === p.seller_id || currentUser.role === 'admin');
+            
+            const ownerButtons = isOwner ? `
+                <div class="flex space-x-2 mt-2">
+                    <button onclick="event.stopPropagation(); openEditModal(${p.id}, '${safeTitle}', '${safeDesc}', '${p.category}', ${p.price}, ${p.stock})" 
+                            class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded text-sm transition">
+                        <i class="fas fa-edit mr-1"></i>Изменить
+                    </button>
+                    <button onclick="event.stopPropagation(); deleteProduct(${p.id})" 
+                            class="flex-1 bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded text-sm transition">
+                        <i class="fas fa-trash mr-1"></i>Удалить
+                    </button>
+                </div>
+            ` : '';
+
+            // Если товар закончился, показываем неактивную кнопку (полезно для владельца)
+            const cartButton = p.stock > 0 
+                ? `<button onclick="event.stopPropagation(); addToCart(${p.id}, '${safeTitle}', ${p.price}, '${safeImg}', ${p.stock})" class="w-full btn-primary text-white py-2 rounded-lg hover:opacity-90 transition"><i class="fas fa-cart-plus mr-2"></i>В корзину</button>`
+                : `<button disabled class="w-full bg-gray-300 text-gray-500 py-2 rounded-lg cursor-not-allowed"><i class="fas fa-ban mr-2"></i>Нет в наличии</button>`;
+
             return `
                 <div class="product-card bg-white rounded-lg shadow overflow-hidden cursor-pointer" onclick="showProductDetail(${p.id})">
                     <div class="h-48 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center overflow-hidden">
@@ -217,12 +268,13 @@ async function loadProducts() {
                         <p class="text-gray-500 text-sm mb-3 h-10 overflow-hidden">${p.description || 'Нет описания'}</p>
                         <div class="flex justify-between items-center mb-3">
                             <span class="text-2xl font-bold text-primary-500">${p.price.toLocaleString()} ₽</span>
-                            <span class="text-xs bg-gray-200 px-2 py-1 rounded">👁 ${p.views || 0}</span>
+                            <span class="text-xs ${p.stock > 0 ? 'bg-gray-200' : 'bg-red-100 text-red-600 font-bold'} px-2 py-1 rounded">📦 ${p.stock} шт.</span>
                         </div>
-                        <button onclick="event.stopPropagation(); addToCart(${p.id}, '${safeTitle}', ${p.price}, '${safeImg}')" class="w-full btn-primary text-white py-2 rounded-lg hover:opacity-90 transition"><i class="fas fa-cart-plus mr-2"></i>В корзину</button>
-                        <button onclick="event.stopPropagation(); showRecommendations(${p.id}, '${p.category}')" class="w-full mt-2 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition text-sm"><i class="fas fa-lightbulb mr-2"></i>Похожие товары</button>
+                        ${cartButton}
+                        ${ownerButtons}
                     </div>
-                </div>`;
+                </div>
+            `;
         }).join('');
     } catch (error) {
         grid.innerHTML = '<p class="text-red-500 col-span-4 text-center py-12">Ошибка загрузки каталога</p>';
@@ -332,11 +384,97 @@ async function handleAddProduct(event) {
     } catch (error) { showToast('Ошибка сети: ' + error.message, 'error'); console.error(error); }
 }
 
-function addToCart(productId, title, price, imageUrl = '') {
-    if (!currentToken) { showToast('Войдите в аккаунт, чтобы добавлять товары', 'warning'); showAuthModal(); return; }
+// === РЕДАКТИРОВАНИЕ И УДАЛЕНИЕ ===
+function openEditModal(productId, title, description, category, price, stock) {
+    document.getElementById('edit-product-id').value = productId;
+    document.getElementById('edit-product-title').value = title;
+    document.getElementById('edit-product-description').value = description;
+    document.getElementById('edit-product-category').value = category;
+    document.getElementById('edit-product-price').value = price;
+    document.getElementById('edit-product-stock').value = stock;
+    document.getElementById('edit-product-image').value = '';
+    document.getElementById('edit-product-modal').classList.remove('hidden');
+}
+
+async function handleEditProduct(event) {
+    event.preventDefault();
+    const productId = document.getElementById('edit-product-id').value;
+    const title = document.getElementById('edit-product-title').value.trim();
+    const description = document.getElementById('edit-product-description').value.trim();
+    const price = parseFloat(document.getElementById('edit-product-price').value);
+    const stock = parseInt(document.getElementById('edit-product-stock')?.value || 0);
+    const category = document.getElementById('edit-product-category').value;
+    const imageFile = document.getElementById('edit-product-image')?.files[0];
+
+    try {
+        const response = await fetch(`${API_BASE}/products/${productId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            body: JSON.stringify({ title, description, price, stock, category, image_url: "" })
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            showToast(error.detail || 'Ошибка обновления', 'error');
+            return;
+        }
+        showToast('Товар обновлён!', 'success');
+        if (imageFile) {
+            const formData = new FormData();
+            formData.append('file', imageFile);
+            const uploadRes = await fetch(`${API_BASE}/products/${productId}/upload-image`, {
+                method: 'POST', headers: { 'Authorization': `Bearer ${currentToken}` }, body: formData
+            });
+            if (uploadRes.ok) showToast('Новое изображение загружено!', 'success');
+        }
+        closeModal('edit-product-modal');
+        loadProducts();
+    } catch (error) { showToast('Ошибка сети: ' + error.message, 'error'); }
+}
+
+async function deleteProduct(productId) {
+    if (!confirm('Вы уверены, что хотите удалить этот товар?')) return;
+    try {
+        const response = await fetch(`${API_BASE}/products/${productId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.status === 204 || response.ok) {
+            showToast('Товар успешно удалён', 'success');
+            loadProducts();
+            return;
+        }
+
+        let errorMsg = 'Ошибка удаления';
+        try {
+            const errorData = await response.json();
+            if (typeof errorData.detail === 'string') {
+                errorMsg = errorData.detail;
+            }
+        } catch (parseError) {
+            errorMsg = 'Серверная ошибка при удалении';
+        }
+        showToast(errorMsg, 'error');
+    } catch (error) {
+        showToast('Ошибка сети: ' + error.message, 'error');
+    }
+}
+// === КОРЗИНА ===
+function addToCart(productId, title, price, imageUrl = '', stock = 999) {
+    if (!currentToken) { 
+        showToast('Войдите в аккаунт, чтобы добавлять товары', 'warning'); 
+        showAuthModal(); 
+        return; 
+    }
+    if (stock <= 0) {
+        showToast('Этот товар закончился и недоступен для покупки', 'warning');
+        return;
+    }
+    
     const existingItem = cart.find(item => item.product_id === productId);
     if (existingItem) existingItem.quantity += 1;
     else cart.push({ product_id: productId, title, price, quantity: 1, image_url: imageUrl });
+    
     localStorage.setItem('cart', JSON.stringify(cart));
     updateCartCount();
     showToast(`${title} добавлен в корзину`, 'success');
@@ -417,13 +555,40 @@ async function checkout() {
 }
 
 async function payOrder(orderId) {
-    showToast('Обработка платежа...', 'info');
+    showToast('Создание платежа через ЮKassa...', 'info');
     try {
-        const response = await fetch(`${API_BASE}/orders/${orderId}/pay`, { method: 'POST', headers: { 'Authorization': `Bearer ${currentToken}` } });
-        if (!response.ok) { const error = await response.json(); showToast(error.detail || 'Ошибка оплаты', 'error'); return; }
-        showToast('Оплата прошла успешно! Чек отправлен на email.', 'success');
-        showOrders();
-    } catch (error) { showToast('Ошибка сети при оплате', 'error'); }
+        const response = await fetch(`${API_BASE}/payments/create/${orderId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            showToast(error.detail || 'Ошибка создания платежа', 'error');
+            return;
+        }
+        const data = await response.json();
+        localStorage.setItem('pending_order_id', orderId);
+        showToast('Переход к оплате...', 'info');
+        window.location.href = data.confirmation_url;
+    } catch (error) { showToast('Ошибка сети: ' + error.message, 'error'); }
+}
+
+async function checkPaymentAfterReturn(orderId) {
+    showToast('Проверяем статус оплаты...', 'info');
+    try {
+        const response = await fetch(`${API_BASE}/payments/check-order/${orderId}`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.status === 'paid') {
+                showToast('✅ Оплата прошла успешно! Чек отправлен на email.', 'success');
+                if (currentUser) showOrders();
+            } else {
+                showToast('Оплата ещё обрабатывается. Проверьте "Мои заказы".', 'warning');
+            }
+        }
+    } catch (error) { console.error('Ошибка проверки оплаты:', error); }
 }
 
 function logout() {
@@ -440,6 +605,7 @@ function logout() {
     showToast('Вы вышли из аккаунта', 'info');
 }
 
+// === АДМИН-ПАНЕЛЬ ===
 function showAdminPanel() {
     hideAllSections();
     document.getElementById('admin-section').classList.remove('hidden');
