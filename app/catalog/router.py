@@ -22,6 +22,20 @@ async def list_products(
 ):
     return await service.get_products(db, category=category, search=search)
 
+@router.get("/my", response_model=list[schemas.ProductOut])
+async def get_my_products(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[user_models.User, Depends(require_role(["seller", "admin"]))],
+):
+    """Вернуть только товары текущего продавца (админ видит все)"""
+    query = select(models.Product)
+    if current_user.role == "admin":
+        query = query.order_by(models.Product.id)
+    else:
+        query = query.where(models.Product.seller_id == current_user.id).order_by(models.Product.id)
+
+    result = await db.execute(query)
+    return result.scalars().all()
 
 @router.get("/recommendations")
 async def get_recommendations(

@@ -7,7 +7,7 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://marketplace:marketplace_pass@postgres:5432/marketplace"
 )
 
-# ДОБАВЛЕНО: pool_pre_ping=True для защиты от "протухших" соединений в Celery
+
 engine = create_async_engine(
     DATABASE_URL, 
     echo=False, 

@@ -60,7 +60,7 @@ function setupSearch() {
 }
 
 function hideAllSections() {
-    ['welcome-section', 'catalog-section', 'cart-section', 'orders-section', 'admin-section'].forEach(id => {
+    ['welcome-section', 'catalog-section', 'my-products-section', 'cart-section', 'orders-section', 'admin-section'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
@@ -108,17 +108,7 @@ async function showOrders() {
             const payButton = isPending
                 ? `<button onclick="payOrder(${o.id})" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center"><i class="fas fa-credit-card mr-2"></i> Оплатить заказ</button>`
                 : '';
-            return `
-                <div class="bg-white rounded-lg p-6 shadow border-l-4 ${isPending ? 'border-yellow-400' : 'border-green-500'}">
-                    <div class="flex justify-between items-center mb-3"><h3 class="font-bold text-lg text-gray-800">Заказ №${o.id}</h3>${statusBadge}</div>
-                    <div class="text-gray-600 mb-3 space-y-1">${o.items.map(i => `<div>• ${i.quantity} шт. × ${i.price_at_purchase.toLocaleString()} ₽</div>`).join('')}</div>
-                    <div class="mt-4 pt-4 border-t border-gray-200 space-y-1">
-                        <div class="flex justify-between text-sm text-gray-600"><span>Товары:</span><span>${o.total_amount.toLocaleString()} ₽</span></div>
-                        <div class="flex justify-between text-sm text-gray-600"><span>Доставка:</span><span>${deliveryCost === 0 ? 'Бесплатно 🎉' : deliveryCost.toLocaleString() + ' ₽'}</span></div>
-                        <div class="flex justify-between text-xl font-bold text-primary-500 pt-2 border-t border-gray-200"><span>Итого:</span><span>${finalTotal.toLocaleString()} ₽</span></div>
-                    </div>
-                    ${payButton}
-                </div>`;
+            return `<div class="bg-white rounded-lg p-6 shadow border-l-4 ${isPending ? 'border-yellow-400' : 'border-green-500'}"> <div class="flex justify-between items-center mb-3"><h3 class="font-bold text-lg text-gray-800">Заказ №${o.id}</h3>${statusBadge}</div> <div class="text-gray-600 mb-3 space-y-1">${o.items.map(i => `<div>• ${i.quantity} шт. × ${i.price_at_purchase.toLocaleString()} ₽</div>`).join('')}</div> <div class="mt-4 pt-4 border-t border-gray-200 space-y-1"> <div class="flex justify-between text-sm text-gray-600"><span>Товары:</span><span>${o.total_amount.toLocaleString()} ₽</span></div> <div class="flex justify-between text-sm text-gray-600"><span>Доставка:</span><span>${deliveryCost === 0 ? 'Бесплатно 🎉' : deliveryCost.toLocaleString() + ' ₽'}</span></div> <div class="flex justify-between text-xl font-bold text-primary-500 pt-2 border-t border-gray-200"><span>Итого:</span><span>${finalTotal.toLocaleString()} ₽</span></div> </div> ${payButton} </div>`;
         }).join('');
     } catch (e) {
         document.getElementById('orders-list').innerHTML = '<p class="text-red-500 text-center py-12">Ошибка загрузки заказов</p>';
@@ -181,6 +171,7 @@ async function loadUserProfile() {
         document.getElementById('user-role').textContent = currentUser.role;
         if (currentUser.role === 'seller' || currentUser.role === 'admin') {
             document.getElementById('add-product-btn').classList.remove('hidden');
+            document.getElementById('my-products-btn').classList.remove('hidden');
         }
         if (currentUser.role === 'admin') {
             document.getElementById('admin-nav-btn').classList.remove('hidden');
@@ -293,8 +284,13 @@ async function showRecommendations(productId, category) {
         const recommendations = await response.json();
         let html = `
             <div class="col-span-4 mb-6">
-                <button onclick="loadProducts()" class="text-primary-500 hover:underline font-medium flex items-center"><i class="fas fa-arrow-left mr-2"></i>Назад ко всем товарам</button>
-                <h3 class="text-2xl font-bold mt-4 text-gray-800">🧠 Похожие товары в категории «${getCategoryName(category)}»<span class="text-sm font-normal text-gray-500">(ранжированы по популярности)</span></h3>
+                <button onclick="loadProducts()" class="text-primary-500 hover:underline font-medium flex items-center">
+                    <i class="fas fa-arrow-left mr-2"></i>Назад ко всем товарам
+                </button>
+                <h3 class="text-2xl font-bold mt-4 text-gray-800">
+                    🧠 Похожие товары в категории «${getCategoryName(category)}»
+                    <span class="text-sm font-normal text-gray-500">(ранжированы по популярности)</span>
+                </h3>
             </div>`;
         if (recommendations.length === 0) {
             html += `<p class="col-span-4 text-center text-gray-500 py-12">Похожих товаров в наличии нет</p>`;
@@ -378,7 +374,11 @@ async function handleAddProduct(event) {
             else { const err = await uploadRes.json().catch(() => ({})); showToast('Фото не загружено: ' + (err.detail || uploadRes.status), 'warning'); }
         }
         closeModal('add-product-modal');
-        loadProducts();
+        if (!document.getElementById('my-products-section').classList.contains('hidden')) {
+            loadMyProducts();
+        } else {
+            loadProducts();
+        }
         event.target.reset();
     } catch (error) { showToast('Ошибка сети: ' + error.message, 'error'); console.error(error); }
 }
@@ -424,7 +424,11 @@ async function handleEditProduct(event) {
             if (uploadRes.ok) showToast('Новое изображение загружено!', 'success');
         }
         closeModal('edit-product-modal');
-        loadProducts();
+        if (!document.getElementById('my-products-section').classList.contains('hidden')) {
+            loadMyProducts();
+        } else {
+            loadProducts();
+        }
     } catch (error) { showToast('Ошибка сети: ' + error.message, 'error'); }
 }
 
@@ -437,7 +441,11 @@ async function deleteProduct(productId) {
         });
         if (response.status === 204 || response.ok) {
             showToast('Товар успешно удалён', 'success');
-            loadProducts();
+            if (!document.getElementById('my-products-section').classList.contains('hidden')) {
+                loadMyProducts();
+            } else {
+                loadProducts();
+            }
             return;
         }
         let errorMsg = 'Ошибка удаления';
@@ -450,6 +458,79 @@ async function deleteProduct(productId) {
         showToast(errorMsg, 'error');
     } catch (error) {
         showToast('Ошибка сети: ' + error.message, 'error');
+    }
+}
+
+// === МОИ ТОВАРЫ ===
+function showMyProducts() {
+    hideAllSections();
+    document.getElementById('my-products-section').classList.remove('hidden');
+    loadMyProducts();
+}
+
+async function loadMyProducts() {
+    const grid = document.getElementById('my-products-grid');
+    const emptyBlock = document.getElementById('my-products-empty');
+
+    grid.innerHTML = Array(4).fill(0).map(() => `
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="h-48 skeleton"></div>
+            <div class="p-4 space-y-3">
+                <div class="h-3 skeleton rounded w-1/3"></div>
+                <div class="h-5 skeleton rounded w-3/4"></div>
+                <div class="h-8 skeleton rounded w-1/2"></div>
+            </div>
+        </div>`).join('');
+
+    try {
+        const response = await fetch(`${API_BASE}/products/my`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!response.ok) throw new Error('Ошибка загрузки');
+        const products = await response.json();
+
+        if (products.length === 0) {
+            grid.innerHTML = '';
+            emptyBlock.classList.remove('hidden');
+            return;
+        }
+
+        emptyBlock.classList.add('hidden');
+
+        grid.innerHTML = products.map(p => {
+            const imgUrl = p.image_url ? p.image_url : `https://picsum.photos/seed/${p.id}/400/300`;
+            const safeTitle = p.title.replace(/'/g, "\\'");
+            const safeDesc = (p.description || '').replace(/'/g, "\\'");
+
+            return `
+                <div class="product-card bg-white rounded-lg shadow overflow-hidden">
+                    <div class="h-48 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center overflow-hidden">
+                        <img src="${imgUrl}" alt="${p.title}" class="w-full h-full object-cover" onerror="this.src='https://picsum.photos/seed/${p.id}/400/300'">
+                    </div>
+                    <div class="p-4">
+                        <div class="text-xs text-gray-500 mb-1 uppercase tracking-wide">${getCategoryName(p.category)}</div>
+                        <h3 class="font-bold text-lg mb-2 truncate text-gray-800">${p.title}</h3>
+                        <p class="text-gray-500 text-sm mb-3 h-10 overflow-hidden">${p.description || 'Нет описания'}</p>
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-2xl font-bold text-primary-500">${p.price.toLocaleString()} ₽</span>
+                            <span class="text-xs ${p.stock > 0 ? 'bg-gray-200' : 'bg-red-100 text-red-600 font-bold'} px-2 py-1 rounded">📦 ${p.stock} шт.</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mb-3">👁 ${p.views || 0} просмотров</div>
+                        <div class="flex space-x-2">
+                            <button onclick="openEditModal(${p.id}, '${safeTitle}', '${safeDesc}', '${p.category}', ${p.price}, ${p.stock})"
+                                    class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded text-sm transition">
+                                <i class="fas fa-edit mr-1"></i>Изменить
+                            </button>
+                            <button onclick="deleteProduct(${p.id})"
+                                    class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded text-sm transition">
+                                <i class="fas fa-trash mr-1"></i>Удалить
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+        }).join('');
+    } catch (error) {
+        grid.innerHTML = '<p class="col-span-4 text-center text-red-500 py-12">Ошибка загрузки ваших товаров</p>';
     }
 }
 
@@ -563,6 +644,7 @@ function logout() {
     const navUser = document.getElementById('nav-user');
     navUser.classList.add('hidden'); navUser.classList.remove('flex');
     document.getElementById('add-product-btn').classList.add('hidden');
+    document.getElementById('my-products-btn').classList.add('hidden');
     document.getElementById('admin-nav-btn').classList.add('hidden');
     hideAllSections();
     document.getElementById('welcome-section').classList.remove('hidden');

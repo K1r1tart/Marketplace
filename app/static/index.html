@@ -110,9 +110,35 @@
         <div id="catalog-section" class="hidden">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-3xl font-bold text-gray-800">Каталог товаров</h2>
-                <button id="add-product-btn" onclick="showAddProductModal()" class="hidden btn-primary text-white px-6 py-2 rounded-lg"><i class="fas fa-plus mr-2"></i>Добавить товар</button>
+                <div class="flex gap-2">
+                    <button id="my-products-btn" onclick="showMyProducts()" class="hidden bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition">
+                        <i class="fas fa-boxes mr-2"></i>Мои товары
+                    </button>
+                    <button id="add-product-btn" onclick="showAddProductModal()" class="hidden btn-primary text-white px-6 py-2 rounded-lg">
+                        <i class="fas fa-plus mr-2"></i>Добавить товар
+                    </button>
+                </div>
             </div>
             <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
+        </div>
+
+        <div id="my-products-section" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold text-gray-800">
+                    <i class="fas fa-boxes text-blue-500 mr-2"></i>Мои товары
+                </h2>
+                <button onclick="showCatalog()" class="text-primary-500 hover:underline font-medium">
+                    <i class="fas fa-arrow-left mr-2"></i>Вернуться к каталогу
+                </button>
+            </div>
+            <div id="my-products-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
+            <div id="my-products-empty" class="hidden text-center py-12">
+                <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
+                <p class="text-gray-500 text-lg">У вас пока нет товаров</p>
+                <button onclick="showAddProductModal()" class="mt-4 btn-primary text-white px-6 py-2 rounded-lg">
+                    <i class="fas fa-plus mr-2"></i>Добавить первый товар
+                </button>
+            </div>
         </div>
 
         <div id="cart-section" class="hidden">
@@ -183,7 +209,7 @@
         </div>
     </div>
 
-    <!-- Модалка РЕДАКТИРОВАНИЯ товара -->
+    <!-- Модалка редактирования товара -->
     <div id="edit-product-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg p-8 max-w-md w-full">
             <div class="flex justify-between items-center mb-6">

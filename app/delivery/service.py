@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 class DeliveryService:
-    """Эмуляция внешнего сервиса доставки (СДЭК, Почта России и т.д.)"""
+    """Эмуляция внешнего сервиса доставки """
 
     @staticmethod
     async def calculate_delivery(order_total: float) -> dict:
@@ -30,7 +30,7 @@ class DeliveryService:
             method = "Стандартная доставка"
 
         logger.info(
-            f"🚚 [MOCK DELIVERY] Расчёт доставки: сумма={order_total} ₽, "
+            f"🚚[MOCK DELIVERY] Расчёт доставки: сумма={order_total} ₽, "
             f"стоимость={cost} ₽, срок={days} дн., метод={method}"
         )
 
